@@ -15,6 +15,9 @@
 Additional Features
 
 - [ ] Add all 15 page quran pages.
+- [ ] Make a playlist feature
+- [ ] User account
+- [ ] Save preferences in user account
 
 ## 🧞 Commands
 
