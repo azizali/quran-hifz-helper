@@ -1,5 +1,7 @@
+import type { SURAH } from "./types";
+
 export const appName = "Hifz Helper";
-export const surahs = [
+export const surahs: SURAH[] = [
   {
     number: 1,
     name: "Al-Fatihah",
