@@ -25,7 +25,8 @@ export const PlayControls: React.FC<PlayControlsProps> = ({
   surah,
   surahs,
 }) => {
-  const [selectedReciter, setSelectedReciter] = useState("husary");
+  const [selectedReciter, setSelectedReciter] =
+    useState<keyof typeof reciters>("husary");
 
   return (
     <>
@@ -37,8 +38,9 @@ export const PlayControls: React.FC<PlayControlsProps> = ({
           id="reciter"
           value={selectedReciter}
           onChange={(e) => {
-            setSelectedReciter(e.target.value);
-            setSelectedReciterCb(reciters[e.target.value].urlPath);
+            const selectedValue = e.target.value as keyof typeof reciters;
+            setSelectedReciter(selectedValue);
+            setSelectedReciterCb(reciters[selectedValue].urlPath);
           }}
         >
           {Object.entries(reciters).map(([key, reciter]) => (
