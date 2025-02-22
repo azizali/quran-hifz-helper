@@ -1,6 +1,9 @@
+import { useState } from "react";
+import reciters from "../_main/reciters";
 import type { Surah } from "../_main/surahs";
 
-interface AyatListProps {
+interface PlayControlsProps {
+  setSelectedReciterCb: React.Dispatch<React.SetStateAction<string>>;
   surahNumber: number;
   setSurahNumber: React.Dispatch<React.SetStateAction<number>>;
   startingAyatNumber: number;
@@ -11,7 +14,8 @@ interface AyatListProps {
   surahs: Surah[];
 }
 
-export const PlayControls: React.FC<AyatListProps> = ({
+export const PlayControls: React.FC<PlayControlsProps> = ({
+  setSelectedReciterCb,
   surahNumber,
   setSurahNumber,
   startingAyatNumber,
@@ -21,8 +25,29 @@ export const PlayControls: React.FC<AyatListProps> = ({
   surah,
   surahs,
 }) => {
+  const [selectedReciter, setSelectedReciter] = useState("husary");
+
   return (
     <>
+      <div>
+        <label htmlFor="reciter">Reciter</label>
+        <select
+          className="border-2 rounded p-2 w-full"
+          name="reciter"
+          id="reciter"
+          value={selectedReciter}
+          onChange={(e) => {
+            setSelectedReciter(e.target.value);
+            setSelectedReciterCb(reciters[e.target.value].urlPath);
+          }}
+        >
+          {Object.entries(reciters).map(([key, reciter]) => (
+            <option key={key} value={key}>
+              {reciter.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <div>
         <label htmlFor="surah">Surah</label>
         <select
@@ -39,9 +64,9 @@ export const PlayControls: React.FC<AyatListProps> = ({
             setEndingAyatNumber(surah.totalVerses);
           }}
         >
-          {surahs.map(({ id, name, translation }) => (
-            <option key={name} value={id}>
-              {id}. {name}: {translation}
+          {surahs.map(({ id, transliteration }) => (
+            <option key={transliteration} value={id}>
+              {id}. {transliteration}
             </option>
           ))}
         </select>

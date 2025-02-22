@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { appName } from "../_main/config";
+import reciters from "../_main/reciters";
 import { activeTrack } from "../_main/sharedState";
 import { surahs } from "../_main/surahs";
 import { type Track, type TrackObject } from "../_main/types";
@@ -22,10 +23,13 @@ import AyatList, { REPEAT_SOUND_TRACK } from "./AyatList";
 import Header from "./Header";
 import PlayControls from "./PlayControls";
 const audioExtention = "mp3"; // 'opus' | 'mp3'
-const audioSrcBaseUrl = `https://everyayah.com/data/Alafasy_64kbps/`;
+const audioSrcBaseUrl = `https://everyayah.com/data`;
 // https://mirrors.quranicaudio.com/muqri/alafasi/opus
 
 const QuranApp = () => {
+  const [reciterUrlPath, setSelectedReciter] = useState(
+    reciters["husary"].urlPath
+  );
   const audioPlayerRef = useRef<{ [key: Track]: RefObject<HTMLAudioElement> }>(
     {}
   );
@@ -71,7 +75,7 @@ const QuranApp = () => {
         surahNumber,
         ayatNumber,
         track,
-        trackUrl: `${audioSrcBaseUrl}${track}.${audioExtention}`,
+        trackUrl: `${audioSrcBaseUrl}/${reciterUrlPath}/${track}.${audioExtention}`,
       };
     });
 
@@ -86,7 +90,13 @@ const QuranApp = () => {
     }
 
     return trackObjects;
-  }, [startingAyatNumber, endingAyatNumber, shouldRepeat, surahNumber]);
+  }, [
+    startingAyatNumber,
+    endingAyatNumber,
+    shouldRepeat,
+    surahNumber,
+    reciterUrlPath,
+  ]);
 
   const activeAyatNumber = useMemo(() => {
     return parseSurahAyatFromTrack($activeTrack).ayat;
@@ -189,9 +199,9 @@ const QuranApp = () => {
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
       <Header appName={appName} />
-      activeTrack: {$activeTrack}
       <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col ">
         <PlayControls
+          setSelectedReciterCb={setSelectedReciter}
           startingAyatNumber={startingAyatNumber}
           setStartingAyatNumber={setStartingAyatNumber}
           endingAyatNumber={endingAyatNumber}
