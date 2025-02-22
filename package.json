@@ -1,5 +1,5 @@
 {
-  "name": "quran-player-astro",
+  "name": "quran-hifz-helper",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
@@ -13,10 +13,12 @@
     "@astrojs/check": "^0.9.3",
     "@astrojs/react": "^3.6.2",
     "@astrojs/tailwind": "^5.1.1",
+    "@nanostores/react": "^0.8.4",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "astro": "^4.15.8",
     "astro-compress": "^2.3.1",
+    "nanostores": "^0.11.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.12",
@@ -25,6 +27,7 @@
     "vite-plugin-pwa": "^0.20.5"
   },
   "devDependencies": {
-    "@vite-pwa/astro": "^0.4.3"
+    "@vite-pwa/astro": "^0.4.3",
+    "axios": "^1.7.9"
   }
 }
