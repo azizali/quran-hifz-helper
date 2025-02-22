@@ -1,4 +1,4 @@
-import type { SURAH } from "../_main/types";
+import type { Surah } from "../_main/surahs";
 
 interface AyatListProps {
   surahNumber: number;
@@ -7,8 +7,8 @@ interface AyatListProps {
   setStartingAyatNumber: React.Dispatch<React.SetStateAction<number>>;
   endingAyatNumber: number;
   setEndingAyatNumber: React.Dispatch<React.SetStateAction<number>>;
-  surah: SURAH;
-  surahs: SURAH[];
+  surah: Surah;
+  surahs: Surah[];
 }
 
 export const PlayControls: React.FC<AyatListProps> = ({
@@ -36,12 +36,12 @@ export const PlayControls: React.FC<AyatListProps> = ({
             setSurahNumber(surahNumber);
             const surah = surahs[surahNumber - 1];
             setStartingAyatNumber(1);
-            setEndingAyatNumber(surah.numberOfAyats);
+            setEndingAyatNumber(surah.totalVerses);
           }}
         >
-          {surahs.map(({ number, name, nameEnglish }) => (
-            <option key={name} value={number}>
-              {number}. {name}: {nameEnglish}
+          {surahs.map(({ id, name, translation }) => (
+            <option key={name} value={id}>
+              {id}. {name}: {translation}
             </option>
           ))}
         </select>
@@ -58,7 +58,7 @@ export const PlayControls: React.FC<AyatListProps> = ({
               setStartingAyatNumber(parseInt(e.target.value));
             }}
           >
-            {Array.from({ length: surah.numberOfAyats }).map((_, index) => (
+            {Array.from({ length: surah.totalVerses }).map((_, index) => (
               <option key={index + 1} value={index + 1}>
                 {index + 1}
               </option>
@@ -77,7 +77,7 @@ export const PlayControls: React.FC<AyatListProps> = ({
             }}
           >
             {Array.from({
-              length: surah.numberOfAyats - startingAyatNumber + 1,
+              length: surah.totalVerses - startingAyatNumber + 1,
             }).map((_, index) => {
               const ayatNumber = startingAyatNumber + index;
               return (
