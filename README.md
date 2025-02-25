@@ -14,7 +14,11 @@
 
 Additional Features
 
-- [ ] Add all 15 page quran pages.
+- [x] Add all 15 page quran pages.
+- [ ] All 611 pages mapped to each ayat
+- [ ] Reading first Ayat
+- [ ] Highlight / select Ayat
+
 - [ ] Make a playlist feature
 - [ ] User account
 - [ ] Save preferences in user account
