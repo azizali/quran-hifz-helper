@@ -16,7 +16,7 @@ const Page: React.FC = () => {
   const $selectedMufhas = useStore(selectedMufhas);
   const $isAudioSyncedWithPage = useStore(isAudioSyncedWithPage);
   const $activePageNumber = useStore(activePageNumberStore);
-  const lastPageNumber = 612;
+  const lastPageNumber = $selectedMufhas.totalPages;
 
   const activePageNumber = useMemo(() => {
     if ($isAudioSyncedWithPage) {
@@ -40,7 +40,8 @@ const Page: React.FC = () => {
         &lt;
       </button>
       <img
-        src={`${$selectedMufhas}/${activePageNumber}.png`}
+        // TODO png extention should change dynamically
+        src={`${$selectedMufhas.urlPath}/${activePageNumber}.png`}
         alt={`Page number: ${activePageNumber}`}
         className="h-full"
       />

@@ -20,7 +20,6 @@ import {
   parseSurahAyatFromTrack,
 } from "../_main/utils";
 import AyatList, { REPEAT_SOUND_TRACK } from "./AyatList";
-import Header from "./Header";
 import PlayControls from "./PlayControls";
 const audioExtention = "mp3"; // 'opus' | 'mp3'
 const audioSrcBaseUrl = `https://everyayah.com/data`;
@@ -198,7 +197,6 @@ const QuranApp = () => {
 
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
-      <Header appName={appName} />
       <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col ">
         <PlayControls
           setSelectedReciterCb={setSelectedReciter}

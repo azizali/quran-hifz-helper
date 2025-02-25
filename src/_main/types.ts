@@ -7,5 +7,3 @@ export type TrackObject = {
   track: Track;
   trackUrl: string;
 };
-
-export type Mufhas = "15-line-simple" | "15-line-green" | "uthmani";
