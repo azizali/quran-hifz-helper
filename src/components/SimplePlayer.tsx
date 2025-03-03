@@ -1,10 +1,13 @@
-import { useStore } from "@nanostores/react";
-import { selectedReciter } from "../_main/sharedState";
+import AyatRangeSelection from "./AyatRangeSelection";
+import ReciterSelection from "./ReciterSelection";
 
 const SimplePlayer = () => {
-  const $selectedReciter = useStore(selectedReciter);
-
-  return <div>{$selectedReciter.name}</div>;
+  return (
+    <div>
+      <ReciterSelection />
+      <AyatRangeSelection />
+    </div>
+  );
 };
 
 export default SimplePlayer;

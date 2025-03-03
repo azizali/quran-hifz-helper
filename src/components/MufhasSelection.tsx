@@ -4,7 +4,7 @@ import { selectedMufhas } from "../_main/sharedState";
 
 const MufhasSelection = () => {
   const $selectedMufhas = useStore(selectedMufhas);
-  console.log({ selectedMufhas });
+
   return (
     <div>
       <label htmlFor="surah">Mufhas</label>

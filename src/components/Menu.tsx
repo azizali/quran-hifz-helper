@@ -1,5 +1,4 @@
 import MufhasSelection from "./MufhasSelection";
-import ReciterSelection from "./ReciterSelection";
 import SurahSelection from "./SurahSelection";
 
 const Menu = () => {
@@ -7,7 +6,6 @@ const Menu = () => {
     <div>
       <SurahSelection />
       <MufhasSelection />
-      <ReciterSelection />
     </div>
   );
 };

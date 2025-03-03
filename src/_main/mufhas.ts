@@ -13,8 +13,8 @@ type Mufhases = {
 };
 
 const mufhases: Mufhases = {
-  "15line": {
-    id: "15line",
+  fifteenLine: {
+    id: "fifteenLine",
     name: "15 line Urdu (InfoPak)",
     urlPath: "15-line-simple",
     totalPages: 611,

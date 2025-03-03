@@ -6,7 +6,7 @@ import {
   isAudioSyncedWithPage,
   selectedMufhas,
 } from "../_main/sharedState";
-import { surahAyatToPage } from "../_main/surahAyatToPage";
+import { mufhasSurahAyatPage } from "../_main/surahAyatToPage";
 import { parseSurahAyatFromTrack } from "../_main/utils";
 
 const Page: React.FC = () => {
@@ -20,7 +20,7 @@ const Page: React.FC = () => {
 
   const activePageNumber = useMemo(() => {
     if ($isAudioSyncedWithPage) {
-      return surahAyatToPage[surah]?.[ayat] || 1;
+      return mufhasSurahAyatPage[$selectedMufhas.id][surah]?.[ayat] || 1;
     }
     return $activePageNumber;
   }, [$isAudioSyncedWithPage, $activePageNumber]);

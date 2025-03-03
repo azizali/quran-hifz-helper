@@ -1,3 +1,5 @@
+import type { MufhasId } from "./mufhas";
+import reciters, { type ReciterKey } from "./reciters";
 import { surahs } from "./surahs";
 import type { Track } from "./types";
 
@@ -36,4 +38,24 @@ export function generateAllFileNames() {
   });
 
   return links;
+}
+
+export function getAudioUrl({
+  surahNumber = 1,
+  ayatNumber = 1,
+  mufhas = "fifteenLine",
+  pageNumber = 1,
+  reciterId = "husary",
+}: {
+  surahNumber?: number;
+  ayatNumber?: number;
+  mufhas?: MufhasId;
+  pageNumber?: number;
+  reciterId?: ReciterKey;
+}) {
+  const audioSrcBaseUrl = `https://everyayah.com/data`;
+  const audioExtention = "mp3"; // 'opus' | 'mp3'
+  const reciterUrlPath = reciters[reciterId].urlPath;
+  const track = genTrackFromSurahAndAyat({ surahNumber, ayatNumber });
+  return `${audioSrcBaseUrl}/${reciterUrlPath}/${track}.${audioExtention}`;
 }

@@ -16,5 +16,4 @@ export const activePageNumber = atom<number>(2);
 export const selectedMufhas = atom<Mufhas>(mufhases[selected.mufhasId]);
 export const selectedSurah = atom<Surah>(surahs[selected.surahNumber - 1]);
 
-export const startingAyatNum = atom<number>(1);
-export const endingAyatNum = atom<number>(7);
+export const ayatRange = atom<[number, number]>([1, 7]);
