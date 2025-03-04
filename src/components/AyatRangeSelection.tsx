@@ -3,6 +3,7 @@ import { ayatRange, selectedSurah } from "../_main/sharedState";
 
 const AyatRangeSelection = () => {
   const [startingAyatNumber, endingAyatNumber] = useStore(ayatRange);
+  console.log({ startingAyatNumber, endingAyatNumber });
   const $selectedSurah = useStore(selectedSurah);
 
   return (
@@ -29,13 +30,14 @@ const AyatRangeSelection = () => {
       </div>
       <div className="flex gap-2 items-center">
         <label htmlFor="endingAyatNumber">Ending</label>
+        {endingAyatNumber}
         <select
           className="border-2 rounded p-2"
           name="endingAyatNumber"
           id="endingAyatNumber"
           value={endingAyatNumber}
           onChange={(e) => {
-            ayatRange.set([startingAyatNumber, parseInt(e.target.value)]);
+            ayatRange.set([endingAyatNumber, parseInt(e.target.value)]);
           }}
         >
           {Array.from({

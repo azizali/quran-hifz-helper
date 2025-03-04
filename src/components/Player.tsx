@@ -12,18 +12,15 @@ import {
 import { useLocalStorage } from "usehooks-ts";
 import { appName } from "../_main/config";
 import reciters from "../_main/reciters";
-import { activeTrack } from "../_main/sharedState";
-import { surahs } from "../_main/surahs";
+import { activeTrack, ayatRange, selectedSurah } from "../_main/sharedState";
 import { type Track, type TrackObject } from "../_main/types";
 import {
   genTrackFromSurahAndAyat,
   parseSurahAyatFromTrack,
 } from "../_main/utils";
 import AyatList, { REPEAT_SOUND_TRACK } from "./AyatList";
-import PlayControls from "./PlayControls";
 const audioExtention = "mp3"; // 'opus' | 'mp3'
 const audioSrcBaseUrl = `https://everyayah.com/data`;
-// https://mirrors.quranicaudio.com/muqri/alafasi/opus
 
 const QuranApp = () => {
   const [reciterUrlPath, setSelectedReciter] = useState(
@@ -34,26 +31,14 @@ const QuranApp = () => {
   );
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const $activeTrack = useStore(activeTrack);
-  const [surahNumber, setSurahNumber] = useLocalStorage<number>(
-    "surahNumber",
-    1
-  );
-  const [startingAyatNumber, setStartingAyatNumber] = useLocalStorage<number>(
-    "startingAyatNumber",
-    1
-  );
-  const [endingAyatNumber, setEndingAyatNumber] = useLocalStorage<number>(
-    "endingAyatNumber",
-    1
-  );
+  const $selectedSurah = useStore(selectedSurah);
+  const [startingAyatNumber, endingAyatNumber] = useStore(ayatRange);
   const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>(
     "shouldRepeat",
     true
   );
 
-  const surah = useMemo(() => {
-    return surahs[surahNumber - 1];
-  }, [surahNumber]);
+  const surah = selectedSurah;
 
   const tracksToPlay = useMemo(() => {
     let ayatNumber = startingAyatNumber - 1;
@@ -64,14 +49,14 @@ const QuranApp = () => {
       ayatNumber++;
 
       const track: Track = genTrackFromSurahAndAyat({
-        surahNumber,
+        surahNumber: $selectedSurah.id,
         ayatNumber,
       });
 
       audioPlayerRef.current[track] = createRef();
 
       return {
-        surahNumber,
+        surahNumber: $selectedSurah.id,
         ayatNumber,
         track,
         trackUrl: `${audioSrcBaseUrl}/${reciterUrlPath}/${track}.${audioExtention}`,
@@ -80,7 +65,7 @@ const QuranApp = () => {
 
     if (shouldRepeat) {
       trackObjects.push({
-        surahNumber,
+        surahNumber: $selectedSurah.id,
         ayatNumber,
         track: REPEAT_SOUND_TRACK as Track,
         trackUrl: "/click-sound.mp3",
@@ -93,7 +78,7 @@ const QuranApp = () => {
     startingAyatNumber,
     endingAyatNumber,
     shouldRepeat,
-    surahNumber,
+    $selectedSurah,
     reciterUrlPath,
   ]);
 
@@ -190,25 +175,9 @@ const QuranApp = () => {
     document.title = `${surah.id}:${activeAyatNumber} : ${surah.name} - ${appName}`;
   }, [activeAyatNumber, surah]);
 
-  useEffect(() => {
-    if (endingAyatNumber < startingAyatNumber)
-      setEndingAyatNumber(startingAyatNumber);
-  }, [startingAyatNumber, endingAyatNumber, setEndingAyatNumber]);
-
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
       <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col ">
-        <PlayControls
-          setSelectedReciterCb={setSelectedReciter}
-          startingAyatNumber={startingAyatNumber}
-          setStartingAyatNumber={setStartingAyatNumber}
-          endingAyatNumber={endingAyatNumber}
-          setEndingAyatNumber={setEndingAyatNumber}
-          surah={surah}
-          surahs={surahs}
-          surahNumber={surahNumber}
-          setSurahNumber={setSurahNumber}
-        />
         <AyatList
           tracksToPlay={tracksToPlay}
           activeTrack={$activeTrack}

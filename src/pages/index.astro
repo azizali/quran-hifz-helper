@@ -1,16 +1,16 @@
 ---
 import Menu from "../components/Menu";
 import Page from "../components/Page";
+import Player from "../components/Player";
 import SimplePlayer from "../components/SimplePlayer";
 import Layout from "../layouts/Layout.astro";
-// import Player from "../components/Player";
 ---
 
 <Layout title="Welcome to Hifz Helper">
   <div class="flex flex-col">
     <Menu client:load />
-    <Page client:load />
     <SimplePlayer client:load />
-    <!-- <Player client:load /> -->
+    <Player client:load />
+    <Page client:load />
   </div>
 </Layout>

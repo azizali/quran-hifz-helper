@@ -1,5 +1,7 @@
+export type SurahId = number;
+
 export type Surah = {
-  id: number; // TODO type so that its 1 to 114
+  id: SurahId; // TODO type so that its 1 to 114
   name: string;
   transliteration: string;
   translation: string;
@@ -7,8 +9,8 @@ export type Surah = {
   totalVerses: number; // TODO type so that its 3 to 200
 };
 
-export const surahs: Surah[] = [
-  {
+export const surahs: { [key: SurahId]: Surah } = {
+  1: {
     id: 1,
     name: "الفاتحة",
     transliteration: "Al-Fatihah",
@@ -16,7 +18,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 7,
   },
-  {
+  2: {
     id: 2,
     name: "البقرة",
     transliteration: "Al-Baqarah",
@@ -24,7 +26,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 286,
   },
-  {
+  3: {
     id: 3,
     name: "آل عمران",
     transliteration: "Ali 'Imran",
@@ -32,7 +34,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 200,
   },
-  {
+  4: {
     id: 4,
     name: "النساء",
     transliteration: "An-Nisa",
@@ -40,7 +42,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 176,
   },
-  {
+  5: {
     id: 5,
     name: "المائدة",
     transliteration: "Al-Ma'idah",
@@ -48,7 +50,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 120,
   },
-  {
+  6: {
     id: 6,
     name: "الأنعام",
     transliteration: "Al-An'am",
@@ -56,7 +58,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 165,
   },
-  {
+  7: {
     id: 7,
     name: "الأعراف",
     transliteration: "Al-A'raf",
@@ -64,7 +66,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 206,
   },
-  {
+  8: {
     id: 8,
     name: "الأنفال",
     transliteration: "Al-Anfal",
@@ -72,7 +74,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 75,
   },
-  {
+  9: {
     id: 9,
     name: "التوبة",
     transliteration: "At-Tawbah",
@@ -80,7 +82,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 129,
   },
-  {
+  10: {
     id: 10,
     name: "يونس",
     transliteration: "Yunus",
@@ -88,7 +90,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 109,
   },
-  {
+  11: {
     id: 11,
     name: "هود",
     transliteration: "Hud",
@@ -96,7 +98,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 123,
   },
-  {
+  12: {
     id: 12,
     name: "يوسف",
     transliteration: "Yusuf",
@@ -104,7 +106,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 111,
   },
-  {
+  13: {
     id: 13,
     name: "الرعد",
     transliteration: "Ar-Ra'd",
@@ -112,7 +114,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 43,
   },
-  {
+  14: {
     id: 14,
     name: "ابراهيم",
     transliteration: "Ibrahim",
@@ -120,7 +122,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 52,
   },
-  {
+  15: {
     id: 15,
     name: "الحجر",
     transliteration: "Al-Hijr",
@@ -128,7 +130,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 99,
   },
-  {
+  16: {
     id: 16,
     name: "النحل",
     transliteration: "An-Nahl",
@@ -136,7 +138,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 128,
   },
-  {
+  17: {
     id: 17,
     name: "الإسراء",
     transliteration: "Al-Isra",
@@ -144,7 +146,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 111,
   },
-  {
+  18: {
     id: 18,
     name: "الكهف",
     transliteration: "Al-Kahf",
@@ -152,7 +154,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 110,
   },
-  {
+  19: {
     id: 19,
     name: "مريم",
     transliteration: "Maryam",
@@ -160,7 +162,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 98,
   },
-  {
+  20: {
     id: 20,
     name: "طه",
     transliteration: "Taha",
@@ -168,7 +170,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 135,
   },
-  {
+  21: {
     id: 21,
     name: "الأنبياء",
     transliteration: "Al-Anbya",
@@ -176,7 +178,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 112,
   },
-  {
+  22: {
     id: 22,
     name: "الحج",
     transliteration: "Al-Hajj",
@@ -184,7 +186,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 78,
   },
-  {
+  23: {
     id: 23,
     name: "المؤمنون",
     transliteration: "Al-Mu'minun",
@@ -192,7 +194,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 118,
   },
-  {
+  24: {
     id: 24,
     name: "النور",
     transliteration: "An-Nur",
@@ -200,7 +202,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 64,
   },
-  {
+  25: {
     id: 25,
     name: "الفرقان",
     transliteration: "Al-Furqan",
@@ -208,7 +210,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 77,
   },
-  {
+  26: {
     id: 26,
     name: "الشعراء",
     transliteration: "Ash-Shu'ara",
@@ -216,7 +218,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 227,
   },
-  {
+  27: {
     id: 27,
     name: "النمل",
     transliteration: "An-Naml",
@@ -224,7 +226,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 93,
   },
-  {
+  28: {
     id: 28,
     name: "القصص",
     transliteration: "Al-Qasas",
@@ -232,7 +234,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 88,
   },
-  {
+  29: {
     id: 29,
     name: "العنكبوت",
     transliteration: "Al-'Ankabut",
@@ -240,7 +242,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 69,
   },
-  {
+  30: {
     id: 30,
     name: "الروم",
     transliteration: "Ar-Rum",
@@ -248,7 +250,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 60,
   },
-  {
+  31: {
     id: 31,
     name: "لقمان",
     transliteration: "Luqman",
@@ -256,7 +258,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 34,
   },
-  {
+  32: {
     id: 32,
     name: "السجدة",
     transliteration: "As-Sajdah",
@@ -264,7 +266,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 30,
   },
-  {
+  33: {
     id: 33,
     name: "الأحزاب",
     transliteration: "Al-Ahzab",
@@ -272,7 +274,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 73,
   },
-  {
+  34: {
     id: 34,
     name: "سبإ",
     transliteration: "Saba",
@@ -280,7 +282,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 54,
   },
-  {
+  35: {
     id: 35,
     name: "فاطر",
     transliteration: "Fatir",
@@ -288,7 +290,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 45,
   },
-  {
+  36: {
     id: 36,
     name: "يس",
     transliteration: "Ya-Sin",
@@ -296,7 +298,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 83,
   },
-  {
+  37: {
     id: 37,
     name: "الصافات",
     transliteration: "As-Saffat",
@@ -304,7 +306,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 182,
   },
-  {
+  38: {
     id: 38,
     name: "ص",
     transliteration: "Sad",
@@ -312,7 +314,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 88,
   },
-  {
+  39: {
     id: 39,
     name: "الزمر",
     transliteration: "Az-Zumar",
@@ -320,7 +322,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 75,
   },
-  {
+  40: {
     id: 40,
     name: "غافر",
     transliteration: "Ghafir",
@@ -328,7 +330,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 85,
   },
-  {
+  41: {
     id: 41,
     name: "فصلت",
     transliteration: "Fussilat",
@@ -336,7 +338,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 54,
   },
-  {
+  42: {
     id: 42,
     name: "الشورى",
     transliteration: "Ash-Shuraa",
@@ -344,7 +346,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 53,
   },
-  {
+  43: {
     id: 43,
     name: "الزخرف",
     transliteration: "Az-Zukhruf",
@@ -352,7 +354,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 89,
   },
-  {
+  44: {
     id: 44,
     name: "الدخان",
     transliteration: "Ad-Dukhan",
@@ -360,7 +362,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 59,
   },
-  {
+  45: {
     id: 45,
     name: "الجاثية",
     transliteration: "Al-Jathiyah",
@@ -368,7 +370,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 37,
   },
-  {
+  46: {
     id: 46,
     name: "الأحقاف",
     transliteration: "Al-Ahqaf",
@@ -376,7 +378,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 35,
   },
-  {
+  47: {
     id: 47,
     name: "محمد",
     transliteration: "Muhammad",
@@ -384,7 +386,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 38,
   },
-  {
+  48: {
     id: 48,
     name: "الفتح",
     transliteration: "Al-Fath",
@@ -392,7 +394,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 29,
   },
-  {
+  49: {
     id: 49,
     name: "الحجرات",
     transliteration: "Al-Hujurat",
@@ -400,7 +402,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 18,
   },
-  {
+  50: {
     id: 50,
     name: "ق",
     transliteration: "Qaf",
@@ -408,7 +410,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 45,
   },
-  {
+  51: {
     id: 51,
     name: "الذاريات",
     transliteration: "Adh-Dhariyat",
@@ -416,7 +418,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 60,
   },
-  {
+  52: {
     id: 52,
     name: "الطور",
     transliteration: "At-Tur",
@@ -424,7 +426,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 49,
   },
-  {
+  53: {
     id: 53,
     name: "النجم",
     transliteration: "An-Najm",
@@ -432,7 +434,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 62,
   },
-  {
+  54: {
     id: 54,
     name: "القمر",
     transliteration: "Al-Qamar",
@@ -440,7 +442,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 55,
   },
-  {
+  55: {
     id: 55,
     name: "الرحمن",
     transliteration: "Ar-Rahman",
@@ -448,7 +450,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 78,
   },
-  {
+  56: {
     id: 56,
     name: "الواقعة",
     transliteration: "Al-Waqi'ah",
@@ -456,7 +458,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 96,
   },
-  {
+  57: {
     id: 57,
     name: "الحديد",
     transliteration: "Al-Hadid",
@@ -464,7 +466,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 29,
   },
-  {
+  58: {
     id: 58,
     name: "المجادلة",
     transliteration: "Al-Mujadila",
@@ -472,7 +474,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 22,
   },
-  {
+  59: {
     id: 59,
     name: "الحشر",
     transliteration: "Al-Hashr",
@@ -480,7 +482,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 24,
   },
-  {
+  60: {
     id: 60,
     name: "الممتحنة",
     transliteration: "Al-Mumtahanah",
@@ -488,7 +490,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 13,
   },
-  {
+  61: {
     id: 61,
     name: "الصف",
     transliteration: "As-Saf",
@@ -496,7 +498,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 14,
   },
-  {
+  62: {
     id: 62,
     name: "الجمعة",
     transliteration: "Al-Jumu'ah",
@@ -504,7 +506,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 11,
   },
-  {
+  63: {
     id: 63,
     name: "المنافقون",
     transliteration: "Al-Munafiqun",
@@ -512,7 +514,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 11,
   },
-  {
+  64: {
     id: 64,
     name: "التغابن",
     transliteration: "At-Taghabun",
@@ -520,7 +522,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 18,
   },
-  {
+  65: {
     id: 65,
     name: "الطلاق",
     transliteration: "At-Talaq",
@@ -528,7 +530,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 12,
   },
-  {
+  66: {
     id: 66,
     name: "التحريم",
     transliteration: "At-Tahrim",
@@ -536,7 +538,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 12,
   },
-  {
+  67: {
     id: 67,
     name: "الملك",
     transliteration: "Al-Mulk",
@@ -544,7 +546,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 30,
   },
-  {
+  68: {
     id: 68,
     name: "القلم",
     transliteration: "Al-Qalam",
@@ -552,7 +554,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 52,
   },
-  {
+  69: {
     id: 69,
     name: "الحاقة",
     transliteration: "Al-Haqqah",
@@ -560,7 +562,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 52,
   },
-  {
+  70: {
     id: 70,
     name: "المعارج",
     transliteration: "Al-Ma'arij",
@@ -568,7 +570,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 44,
   },
-  {
+  71: {
     id: 71,
     name: "نوح",
     transliteration: "Nuh",
@@ -576,7 +578,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 28,
   },
-  {
+  72: {
     id: 72,
     name: "الجن",
     transliteration: "Al-Jinn",
@@ -584,7 +586,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 28,
   },
-  {
+  73: {
     id: 73,
     name: "المزمل",
     transliteration: "Al-Muzzammil",
@@ -592,7 +594,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 20,
   },
-  {
+  74: {
     id: 74,
     name: "المدثر",
     transliteration: "Al-Muddaththir",
@@ -600,7 +602,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 56,
   },
-  {
+  75: {
     id: 75,
     name: "القيامة",
     transliteration: "Al-Qiyamah",
@@ -608,7 +610,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 40,
   },
-  {
+  76: {
     id: 76,
     name: "الانسان",
     transliteration: "Al-Insan",
@@ -616,7 +618,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 31,
   },
-  {
+  77: {
     id: 77,
     name: "المرسلات",
     transliteration: "Al-Mursalat",
@@ -624,7 +626,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 50,
   },
-  {
+  78: {
     id: 78,
     name: "النبإ",
     transliteration: "An-Naba",
@@ -632,7 +634,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 40,
   },
-  {
+  79: {
     id: 79,
     name: "النازعات",
     transliteration: "An-Nazi'at",
@@ -640,7 +642,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 46,
   },
-  {
+  80: {
     id: 80,
     name: "عبس",
     transliteration: "'Abasa",
@@ -648,7 +650,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 42,
   },
-  {
+  81: {
     id: 81,
     name: "التكوير",
     transliteration: "At-Takwir",
@@ -656,7 +658,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 29,
   },
-  {
+  82: {
     id: 82,
     name: "الإنفطار",
     transliteration: "Al-Infitar",
@@ -664,7 +666,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 19,
   },
-  {
+  83: {
     id: 83,
     name: "المطففين",
     transliteration: "Al-Mutaffifin",
@@ -672,7 +674,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 36,
   },
-  {
+  84: {
     id: 84,
     name: "الإنشقاق",
     transliteration: "Al-Inshiqaq",
@@ -680,7 +682,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 25,
   },
-  {
+  85: {
     id: 85,
     name: "البروج",
     transliteration: "Al-Buruj",
@@ -688,7 +690,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 22,
   },
-  {
+  86: {
     id: 86,
     name: "الطارق",
     transliteration: "At-Tariq",
@@ -696,7 +698,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 17,
   },
-  {
+  87: {
     id: 87,
     name: "الأعلى",
     transliteration: "Al-A'la",
@@ -704,7 +706,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 19,
   },
-  {
+  88: {
     id: 88,
     name: "الغاشية",
     transliteration: "Al-Ghashiyah",
@@ -712,7 +714,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 26,
   },
-  {
+  89: {
     id: 89,
     name: "الفجر",
     transliteration: "Al-Fajr",
@@ -720,7 +722,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 30,
   },
-  {
+  90: {
     id: 90,
     name: "البلد",
     transliteration: "Al-Balad",
@@ -728,7 +730,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 20,
   },
-  {
+  91: {
     id: 91,
     name: "الشمس",
     transliteration: "Ash-Shams",
@@ -736,7 +738,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 15,
   },
-  {
+  92: {
     id: 92,
     name: "الليل",
     transliteration: "Al-Layl",
@@ -744,7 +746,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 21,
   },
-  {
+  93: {
     id: 93,
     name: "الضحى",
     transliteration: "Ad-Duhaa",
@@ -752,7 +754,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 11,
   },
-  {
+  94: {
     id: 94,
     name: "الشرح",
     transliteration: "Ash-Sharh",
@@ -760,7 +762,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 8,
   },
-  {
+  95: {
     id: 95,
     name: "التين",
     transliteration: "At-Tin",
@@ -768,7 +770,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 8,
   },
-  {
+  96: {
     id: 96,
     name: "العلق",
     transliteration: "Al-'Alaq",
@@ -776,7 +778,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 19,
   },
-  {
+  97: {
     id: 97,
     name: "القدر",
     transliteration: "Al-Qadr",
@@ -784,7 +786,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 5,
   },
-  {
+  98: {
     id: 98,
     name: "البينة",
     transliteration: "Al-Bayyinah",
@@ -792,7 +794,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 8,
   },
-  {
+  99: {
     id: 99,
     name: "الزلزلة",
     transliteration: "Az-Zalzalah",
@@ -800,7 +802,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 8,
   },
-  {
+  100: {
     id: 100,
     name: "العاديات",
     transliteration: "Al-'Adiyat",
@@ -808,7 +810,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 11,
   },
-  {
+  101: {
     id: 101,
     name: "القارعة",
     transliteration: "Al-Qari'ah",
@@ -816,7 +818,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 11,
   },
-  {
+  102: {
     id: 102,
     name: "التكاثر",
     transliteration: "At-Takathur",
@@ -824,7 +826,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 8,
   },
-  {
+  103: {
     id: 103,
     name: "العصر",
     transliteration: "Al-'Asr",
@@ -832,7 +834,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 3,
   },
-  {
+  104: {
     id: 104,
     name: "الهمزة",
     transliteration: "Al-Humazah",
@@ -840,7 +842,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 9,
   },
-  {
+  105: {
     id: 105,
     name: "الفيل",
     transliteration: "Al-Fil",
@@ -848,7 +850,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 5,
   },
-  {
+  106: {
     id: 106,
     name: "قريش",
     transliteration: "Quraysh",
@@ -856,7 +858,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 4,
   },
-  {
+  107: {
     id: 107,
     name: "الماعون",
     transliteration: "Al-Ma'un",
@@ -864,7 +866,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 7,
   },
-  {
+  108: {
     id: 108,
     name: "الكوثر",
     transliteration: "Al-Kawthar",
@@ -872,7 +874,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 3,
   },
-  {
+  109: {
     id: 109,
     name: "الكافرون",
     transliteration: "Al-Kafirun",
@@ -880,7 +882,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 6,
   },
-  {
+  110: {
     id: 110,
     name: "النصر",
     transliteration: "An-Nasr",
@@ -888,7 +890,7 @@ export const surahs: Surah[] = [
     type: "medinan",
     totalVerses: 3,
   },
-  {
+  111: {
     id: 111,
     name: "المسد",
     transliteration: "Al-Masad",
@@ -896,7 +898,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 5,
   },
-  {
+  112: {
     id: 112,
     name: "الإخلاص",
     transliteration: "Al-Ikhlas",
@@ -904,7 +906,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 4,
   },
-  {
+  113: {
     id: 113,
     name: "الفلق",
     transliteration: "Al-Falaq",
@@ -912,7 +914,7 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 5,
   },
-  {
+  114: {
     id: 114,
     name: "الناس",
     transliteration: "An-Nas",
@@ -920,4 +922,4 @@ export const surahs: Surah[] = [
     type: "meccan",
     totalVerses: 6,
   },
-];
+};

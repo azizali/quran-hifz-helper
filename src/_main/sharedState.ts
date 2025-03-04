@@ -14,6 +14,6 @@ export const selectedReciter = atom<Reciter>(reciters[selected.reciterKey]);
 export const activePageNumber = atom<number>(2);
 
 export const selectedMufhas = atom<Mufhas>(mufhases[selected.mufhasId]);
-export const selectedSurah = atom<Surah>(surahs[selected.surahNumber - 1]);
+export const selectedSurah = atom<Surah>(surahs[selected.surahNumber]);
 
 export const ayatRange = atom<[number, number]>([1, 7]);

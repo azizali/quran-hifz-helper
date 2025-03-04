@@ -16,16 +16,19 @@ const SurahSelection = () => {
         size={1}
         onChange={(e) => {
           const surahNumber = parseInt(e.target.value);
-          selectedSurah.set(surahs[surahNumber]);
-          const surah = surahs[surahNumber - 1];
+          const surah = surahs[surahNumber];
+          selectedSurah.set(surah);
           ayatRange.set([1, surah.totalVerses]);
         }}
       >
-        {surahs.map(({ id, transliteration }) => (
-          <option key={transliteration} value={id}>
-            {id}. {transliteration}
-          </option>
-        ))}
+        {Object.keys(surahs).map((surahId) => {
+          const { id, transliteration } = surahs[parseInt(surahId)];
+          return (
+            <option key={transliteration} value={id}>
+              {id}. {transliteration}
+            </option>
+          );
+        })}
       </select>
     </div>
   );
