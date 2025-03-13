@@ -26,9 +26,10 @@ export function genTrackFromSurahAndAyat({
 export function generateAllFileNames() {
   const links: string[] = [];
 
-  surahs.forEach(({ id: surahNumber, totalVerses }) => {
+  Object.keys(surahs).forEach((surahId) => {
+    const { totalVerses } = surahs[parseInt(surahId)];
     for (let ayatNumber = 1; ayatNumber < totalVerses; ayatNumber++) {
-      const track: string = `${surahNumber
+      const track: string = `${surahId
         .toString()
         .padStart(3, "0")}${ayatNumber.toString().padStart(3, "0")}`;
 

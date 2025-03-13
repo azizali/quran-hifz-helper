@@ -9,10 +9,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocalStorage } from "usehooks-ts";
 import { appName } from "../_main/config";
-import reciters from "../_main/reciters";
-import { activeTrack, ayatRange, selectedSurah } from "../_main/sharedState";
+import {
+  activeTrack,
+  ayatRange,
+  selectedReciter,
+  selectedSurah,
+  shouldRepeat,
+} from "../_main/sharedState";
 import { type Track, type TrackObject } from "../_main/types";
 import {
   genTrackFromSurahAndAyat,
@@ -23,9 +27,7 @@ const audioExtention = "mp3"; // 'opus' | 'mp3'
 const audioSrcBaseUrl = `https://everyayah.com/data`;
 
 const QuranApp = () => {
-  const [reciterUrlPath, setSelectedReciter] = useState(
-    reciters["husary"].urlPath
-  );
+  const $selectecReciter = useStore(selectedReciter);
   const audioPlayerRef = useRef<{ [key: Track]: RefObject<HTMLAudioElement> }>(
     {}
   );
@@ -33,12 +35,7 @@ const QuranApp = () => {
   const $activeTrack = useStore(activeTrack);
   const $selectedSurah = useStore(selectedSurah);
   const [startingAyatNumber, endingAyatNumber] = useStore(ayatRange);
-  const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>(
-    "shouldRepeat",
-    true
-  );
-
-  const surah = selectedSurah;
+  const $shouldRepeat = useStore(shouldRepeat);
 
   const tracksToPlay = useMemo(() => {
     let ayatNumber = startingAyatNumber - 1;
@@ -59,11 +56,11 @@ const QuranApp = () => {
         surahNumber: $selectedSurah.id,
         ayatNumber,
         track,
-        trackUrl: `${audioSrcBaseUrl}/${reciterUrlPath}/${track}.${audioExtention}`,
+        trackUrl: `${audioSrcBaseUrl}/${$selectecReciter.urlPath}/${track}.${audioExtention}`,
       };
     });
 
-    if (shouldRepeat) {
+    if ($shouldRepeat) {
       trackObjects.push({
         surahNumber: $selectedSurah.id,
         ayatNumber,
@@ -77,9 +74,9 @@ const QuranApp = () => {
   }, [
     startingAyatNumber,
     endingAyatNumber,
-    shouldRepeat,
+    $shouldRepeat,
     $selectedSurah,
-    reciterUrlPath,
+    $selectecReciter,
   ]);
 
   const activeAyatNumber = useMemo(() => {
@@ -119,7 +116,7 @@ const QuranApp = () => {
       playAyat(nextTrack);
       return;
     }
-    if (shouldRepeat) {
+    if ($shouldRepeat) {
       const firstTrack = tracksToPlay[0].track;
       activeTrack.set(firstTrack);
       playAyat(firstTrack);
@@ -172,8 +169,8 @@ const QuranApp = () => {
   }, [tracksToPlay, handleStopAll]);
 
   useEffect(() => {
-    document.title = `${surah.id}:${activeAyatNumber} : ${surah.name} - ${appName}`;
-  }, [activeAyatNumber, surah]);
+    document.title = `${$selectedSurah.id}:${activeAyatNumber} : ${$selectedSurah.name} - ${appName}`;
+  }, [activeAyatNumber, $selectedSurah]);
 
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
@@ -189,16 +186,6 @@ const QuranApp = () => {
           handleEnded={handleEnded}
         />
         <div className="flex gap-3 justify-between">
-          <label className="flex gap-2" htmlFor="shouldRepeat">
-            <input
-              type="checkbox"
-              name="shouldRepeat"
-              id="shouldRepeat"
-              checked={shouldRepeat}
-              onChange={() => setShouldRepeat(!shouldRepeat)}
-            />
-            Repeat
-          </label>
           <div>Current ayat #{activeAyatNumber}</div>
         </div>
       </div>

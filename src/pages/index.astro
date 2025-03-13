@@ -7,10 +7,10 @@ import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout title="Welcome to Hifz Helper">
-  <div class="flex flex-col">
-    <Menu client:load />
-    <SimplePlayer client:load />
-    <Player client:load />
+  <div class="flex flex-col h-screen mx-auto w-full max-w-md">
+    <div class="absolute top-0"><Menu client:load /></div>
     <Page client:load />
+    <div class="absolute bottom-0"><SimplePlayer client:load /></div>
+    <div class="hidden"><Player client:load /></div>
   </div>
 </Layout>

@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { ayatRange, selectedSurah } from "../_main/sharedState";
+import { selectedSurah } from "../_main/sharedState";
 import { surahs } from "../_main/surahs";
 
 const SurahSelection = () => {
@@ -18,7 +18,6 @@ const SurahSelection = () => {
           const surahNumber = parseInt(e.target.value);
           const surah = surahs[surahNumber];
           selectedSurah.set(surah);
-          ayatRange.set([1, surah.totalVerses]);
         }}
       >
         {Object.keys(surahs).map((surahId) => {
