@@ -12,7 +12,7 @@ export const activeTrack = atom<Track>("001001" as Track);
 export const isAudioSyncedWithPage = atom<boolean>(false);
 export const selectedReciter = atom<Reciter>(reciters[selected.reciterKey]);
 
-export const activePageNumber = atom<number>(2);
+export const activePageNumber = atom<number>(1);
 
 export const selectedMufhas = atom<Mufhas>(mufhases[selected.mufhasId]);
 export const selectedSurah = atom<Surah>(surahs[selected.surahNumber]);

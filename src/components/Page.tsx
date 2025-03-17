@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   activePageNumber as activePageNumberStore,
   activeTrack,
@@ -8,6 +8,7 @@ import {
 } from "../_main/sharedState";
 import { mufhasSurahAyatPage } from "../_main/surahAyatToPage";
 import { parseSurahAyatFromTrack } from "../_main/utils";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "./ui/carousel";
 
 const Page: React.FC = () => {
   const $activeTrack = useStore(activeTrack);
@@ -18,6 +19,7 @@ const Page: React.FC = () => {
   const $activePageNumber = useStore(activePageNumberStore);
   const lastPageNumber = $selectedMufhas.totalPages;
 
+  const [api, setApi] = React.useState<CarouselApi>()
   const activePageNumber = useMemo(() => {
     if ($isAudioSyncedWithPage) {
       return mufhasSurahAyatPage[$selectedMufhas.id][surah]?.[ayat] || 1;
@@ -30,29 +32,42 @@ const Page: React.FC = () => {
     activePageNumberStore.set(pageNumber);
   };
 
+  const handleCarouselChange = (newPageNumber:any) => {
+    console.log({newPageNumber})
+    handleNavigate(newPageNumber);
+  };
+
+  useEffect(() => {
+    if (!api) {
+      return
+    }
+
+    activePageNumberStore.set(api.selectedScrollSnap() + 1)
+
+    api.on("select", () => {
+      activePageNumberStore.set(api.selectedScrollSnap() + 1)
+    })
+  }, [api])
+
   return (
-    <div className="flex justify-center h-screen">
-      <button
-        className="btn p-3 border-2"
-        onClick={() => handleNavigate(activePageNumber + 1)}
-        disabled={activePageNumber > lastPageNumber - 1}
-      >
-        &lt;
-      </button>
-      <img
-        // TODO png extention should change dynamically
-        src={`${$selectedMufhas.urlPath}/${activePageNumber}.png`}
-        alt={`Page number: ${activePageNumber}`}
-        className="h-full"
-      />
-      <button
-        className="btn p-3 border-2"
-        onClick={() => handleNavigate(activePageNumber - 1)}
-        disabled={activePageNumber < 1}
-      >
-        &gt;
-      </button>
-    </div>
+    <>
+      activePageNumber: {$activePageNumber}
+      <Carousel setApi={setApi}>
+        <CarouselContent>
+          {Array.from({ length: lastPageNumber }, (_, i) => i + 1).map((pageNumber) => (
+            <CarouselItem key={pageNumber}>
+              <img
+                src={`${$selectedMufhas.urlPath}/${pageNumber}.png`}
+                alt={`Page number: ${pageNumber}`}
+                className="h-full"
+              />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselNext />
+        <CarouselPrevious />
+      </Carousel>
+    </>
   );
 };
 

@@ -10,24 +10,35 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.3",
-    "@astrojs/react": "^3.6.2",
-    "@astrojs/tailwind": "^5.1.1",
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/react": "^4.2.1",
+    "@astrojs/tailwind": "^6.0.0",
     "@nanostores/react": "^0.8.4",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@tailwindcss/vite": "^4.0.14",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
-    "astro": "^4.15.8",
+    "astro": "^5.5.2",
     "astro-compress": "^2.3.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "embla-carousel-react": "^8.5.2",
+    "lucide-react": "^0.482.0",
     "nanostores": "^0.11.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.12",
+    "shadcn": "^2.4.0-canary.14",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.0.14",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.6.2",
+    "ui": "github:shadcn/ui",
     "usehooks-ts": "^3.1.0",
     "vite-plugin-pwa": "^0.20.5"
   },
   "devDependencies": {
     "@vite-pwa/astro": "^0.4.3",
-    "axios": "^1.7.9"
+    "axios": "^1.7.9",
+    "workbox-window": "^7.3.0"
   }
 }
