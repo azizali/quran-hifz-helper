@@ -10,8 +10,6 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "./ui/
 
 const Page: React.FC = () => {
   const $activeTrack = useStore(activeTrack);
-  const { surah, ayat } = parseSurahAyatFromTrack($activeTrack);
-
   const $selectedMufhas = useStore(selectedMufhas);
   const $activePageNumber = useStore(activePageNumberStore);
   const lastPageNumber = $selectedMufhas.totalPages;

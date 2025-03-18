@@ -44,14 +44,10 @@ export function generateAllFileNames() {
 export function getAudioUrl({
   surahNumber = 1,
   ayatNumber = 1,
-  mufhas = "fifteenLine",
-  pageNumber = 1,
   reciterId = "husary",
 }: {
   surahNumber?: number;
   ayatNumber?: number;
-  mufhas?: MufhasId;
-  pageNumber?: number;
   reciterId?: ReciterKey;
 }) {
   const audioSrcBaseUrl = `https://everyayah.com/data`;

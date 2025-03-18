@@ -23,7 +23,7 @@ export const selectedSurah = atom<Surah>(surahs[selected.surahNumber]);
 
 export const ayatRange = atom<[number, number]>([1, 7]);
 
-activeTrack.listen((newTrack) => {
+activeTrack.listen(() => {
   const activeAyatNumber = parseSurahAyatFromTrack(activeTrack.value).ayat;
   const selectedPage = mufhasSurahAyatPage[selectedMufhas.value.id][selectedSurah.value.id][activeAyatNumber];
   activePageNumber.set(selectedPage);
@@ -34,7 +34,7 @@ selectedSurah.listen((newSurah) => {
   ayatRange.set([1, newSurah.totalVerses]);
 });
 
-activeTrack.listen((newTrack) => {
+activeTrack.listen(() => {
   const activeAyatNumber = parseSurahAyatFromTrack(activeTrack.value).ayat;
   document.title = `${selectedSurah.value.id}:${activeAyatNumber} : ${selectedSurah.value.transliteration} - ${appName}`;
 });

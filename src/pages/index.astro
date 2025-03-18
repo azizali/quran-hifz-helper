@@ -23,8 +23,8 @@ import "../styles/global.css";
   showHeaderFooter.subscribe((val) => {
     const headerEl = document.getElementById("header");
     const footerEl = document.getElementById("footer");
-    headerEl.style.display = val ? "block" : "none";
-    footerEl.style.display = val ? "block" : "none";
+    headerEl && (headerEl.style.display = val ? "block" : "none");
+    footerEl && (footerEl.style.display = val ? "block" : "none");
   });
 </script>
 
