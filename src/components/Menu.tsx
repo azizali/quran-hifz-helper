@@ -3,7 +3,7 @@ import SurahSelection from "./SurahSelection";
 
 const Menu = () => {
   return (
-    <div className="flex justify-between">
+    <div className="text-xs flex justify-between p-1 gap-1">
       <SurahSelection />
       <MufhasSelection />
     </div>

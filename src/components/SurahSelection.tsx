@@ -7,7 +7,6 @@ const SurahSelection = () => {
 
   return (
     <div>
-      <label htmlFor="surah">Surah</label>
       <select
         className="border-2 rounded p-2 w-full"
         name="surah"

@@ -19,12 +19,12 @@ const mufhases: Mufhases = {
     urlPath: "15-line-simple",
     totalPages: 611,
   },
-  uthmani: {
-    id: "uthmani",
-    name: "Uthmani",
-    urlPath: "uthmani",
-    totalPages: 604,
-  },
+  // uthmani: {
+  //   id: "uthmani",
+  //   name: "Uthmani",
+  //   urlPath: "uthmani",
+  //   totalPages: 604,
+  // },
 };
 
 export default mufhases;

@@ -4,7 +4,6 @@ import { selectedReciter } from "../_main/sharedState";
 
 const ReciterSelection = () => {
   const $selectedReciter = useStore(selectedReciter);
-  console.log({ selectedReciter: $selectedReciter });
   return (
     <div>
       <label htmlFor="surah">Reciter</label>

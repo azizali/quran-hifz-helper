@@ -35,7 +35,7 @@ export const AyatList: React.FC<AyatListProps> = ({
   ]);
 
   return (
-    <div className="overflow-y-scroll border scroll-smooth">
+    <div className="hidden overflow-y-scroll border scroll-smooth">
       {tracksToPlay.map(({ ayatNumber, track, trackUrl }) => {
         const isCachedTrack = cachedAudio[trackUrl];
         const isActiveTrack =

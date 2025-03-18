@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { appName } from "../_main/config";
 import {
   activeTrack,
   ayatRange,
@@ -168,34 +167,25 @@ const QuranApp = () => {
     activeTrack.set(tracksToPlay[0].track);
   }, [tracksToPlay, handleStopAll]);
 
-  useEffect(() => {
-    document.title = `${$selectedSurah.id}:${activeAyatNumber} : ${$selectedSurah.name} - ${appName}`;
-  }, [activeAyatNumber, $selectedSurah]);
-
   return (
-    <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
-      <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col ">
-        <AyatList
-          tracksToPlay={tracksToPlay}
-          activeTrack={$activeTrack}
-          activeAyatNumber={activeAyatNumber}
-          setIsPlaying={setIsPlaying}
-          handleAyatClick={handleAyatClick}
-          isPlaying={isPlaying}
-          audioPlayerRef={audioPlayerRef}
-          handleEnded={handleEnded}
-        />
-        <div className="flex gap-3 justify-between">
-          <div>Current ayat #{activeAyatNumber}</div>
-        </div>
-      </div>
-      <div className="inline-flex shadow-sm" role="group">
+    <div>
+      <AyatList
+        tracksToPlay={tracksToPlay}
+        activeTrack={$activeTrack}
+        activeAyatNumber={activeAyatNumber}
+        setIsPlaying={setIsPlaying}
+        handleAyatClick={handleAyatClick}
+        isPlaying={isPlaying}
+        audioPlayerRef={audioPlayerRef}
+        handleEnded={handleEnded}
+      />
+      <div className="w-full inline-flex" role="group">
         {!isPlaying && (
           <button
             className="btn bg-primary font-bold text-xl text-white w-full p-3"
             onClick={() => handlePlay({ activeTrack: $activeTrack })}
           >
-            Play
+            Play <span className="text-xs">(Current ayat #{activeAyatNumber})</span>
           </button>
         )}
         {isPlaying && (
@@ -203,12 +193,12 @@ const QuranApp = () => {
             className="btn bg-primary font-bold text-xl text-white w-full p-3"
             onClick={handlePause}
           >
-            Pause
+            Pause  <span className="text-xs">(Current ayat #{activeAyatNumber})</span>
           </button>
         )}
         {activeAyatNumber > startingAyatNumber && (
           <button
-            className="btn bg-secondary font-bold text-xl text-white p-3"
+            className="btn bg-muted-foreground font-bold text-xl text-white p-3"
             onClick={handleReset}
           >
             Restart

@@ -7,7 +7,7 @@ const AyatRangeSelection = () => {
 
   return (
     <div className="flex gap-2">
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-col">
         <label htmlFor="startingAyatNumber">Starting</label>
         <select
           className="border-2 rounded p-2"
@@ -27,7 +27,7 @@ const AyatRangeSelection = () => {
           )}
         </select>
       </div>
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-col">
         <label htmlFor="endingAyatNumber">Ending</label>
         <select
           className="border-2 rounded p-2"

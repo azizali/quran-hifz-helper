@@ -6,7 +6,7 @@ import ReciterSelection from "./ReciterSelection";
 const SimplePlayer = () => {
   const $shouldRepeat = useStore(shouldRepeat);
   return (
-    <div className="flex justify-between items-center">
+    <div className="text-sm flex justify-between items-center p-1 gap-1">
       <ReciterSelection />
       <AyatRangeSelection />
       <label className="flex gap-2" htmlFor="shouldRepeat">
@@ -19,7 +19,6 @@ const SimplePlayer = () => {
         />
         Repeat
       </label>
-      <button>Play</button>
     </div>
   );
 };

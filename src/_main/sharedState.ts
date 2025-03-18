@@ -1,5 +1,5 @@
 import { atom } from "nanostores";
-import { selected } from "./config";
+import { appName, selected } from "./config";
 import mufhases, { type Mufhas } from "./mufhas";
 import type { Reciter } from "./reciters";
 import reciters from "./reciters";
@@ -24,12 +24,17 @@ export const selectedSurah = atom<Surah>(surahs[selected.surahNumber]);
 export const ayatRange = atom<[number, number]>([1, 7]);
 
 activeTrack.listen((newTrack) => {
-  const selectedAyat = parseSurahAyatFromTrack(activeTrack.value).ayat;
-  const selectedPage = mufhasSurahAyatPage[selectedMufhas.value.id][selectedSurah.value.id][selectedAyat];
+  const activeAyatNumber = parseSurahAyatFromTrack(activeTrack.value).ayat;
+  const selectedPage = mufhasSurahAyatPage[selectedMufhas.value.id][selectedSurah.value.id][activeAyatNumber];
   activePageNumber.set(selectedPage);
   console.log({selectedPage, activePageNumber: activePageNumber.value});
 });
 
 selectedSurah.listen((newSurah) => {
   ayatRange.set([1, newSurah.totalVerses]);
+});
+
+activeTrack.listen((newTrack) => {
+  const activeAyatNumber = parseSurahAyatFromTrack(activeTrack.value).ayat;
+  document.title = `${selectedSurah.value.id}:${activeAyatNumber} : ${selectedSurah.value.transliteration} - ${appName}`;
 });
