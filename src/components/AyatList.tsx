@@ -44,7 +44,7 @@ export const AyatList: React.FC<AyatListProps> = ({
           activeTrack !== track && track !== REPEAT_SOUND_TRACK;
         return (
           <div
-            key={track}
+            key={trackUrl}
             className="block p-2 border-y border-t-0 w-full even:bg-slate-100 last:hidden"
           >
             <div className="flex">
