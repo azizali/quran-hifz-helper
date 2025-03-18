@@ -7,11 +7,37 @@ import Layout from "../layouts/Layout.astro";
 import "../styles/global.css";
 ---
 
+<script>
+  import { showHeaderFooter } from "../_main/sharedState";
+
+  function toggleHeaderFooter() {
+    const currentVal = showHeaderFooter.get();
+    showHeaderFooter.set(!currentVal); // Update the store
+  }
+
+  const pageElement = document.getElementById("page");
+  if (pageElement) {
+    pageElement.addEventListener("click", toggleHeaderFooter);
+  }
+
+  showHeaderFooter.subscribe((val) => {
+    const headerEl = document.getElementById("header");
+    const footerEl = document.getElementById("footer");
+
+    headerEl.style.display = val ? "block" : "none";
+    footerEl.style.display = val ? "block" : "none";
+  });
+</script>
+
 <Layout title="Welcome to Hifz Helper">
   <div class="flex flex-col h-screen mx-auto w-full max-w-md">
-    <div class="absolute top-0"><Menu client:load /></div>
-    <Page client:load />
-    <div class="absolute bottom-0"><SimplePlayer client:load /></div>
+    <div id="header" class="z-10 absolute top-0 bg-slate-300">
+      <Menu client:load />
+    </div>
+    <div id="page"><Page client:load /></div>
+    <div id="footer" class="z-10 absolute bottom-0 bg-slate-300">
+      <SimplePlayer client:load />
+    </div>
     <div class="hidden"><Player client:load /></div>
   </div>
 </Layout>

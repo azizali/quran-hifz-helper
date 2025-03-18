@@ -12,6 +12,6 @@ export type MufhasSurahAyatPage = {
 };
 
 export const mufhasSurahAyatPage: MufhasSurahAyatPage = {
-  fifteenLineMufhas: fifteenLineMufhas,
+  fifteenLine: fifteenLineMufhas,
   uthmani: uthmaniMufhas,
 };
