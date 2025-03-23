@@ -1,27 +1,27 @@
 import type { RefObject, SyntheticEvent } from "react";
-import type { Track, TrackObject } from "../_main/types";
-import PlayIcon from "./icons/PlayIcon";
-import SaveIcon from "./icons/SaveIcon";
-import { useCachedAssets } from "./useCachedAssets";
+import type { TrackObject, TrackUrl } from "../../_main/types";
+import PlayIcon from "../icons/PlayIcon";
+import SaveIcon from "../icons/SaveIcon";
+import { useCachedAssets } from "../useCachedAssets";
 
-export const REPEAT_SOUND_TRACK = "REPEAT_SOUND_TRACK" as Track;
+export const REPEAT_SOUND_TRACK = "/click-sound.mp3" as TrackUrl;
 
 interface AyatListProps {
   tracksToPlay: TrackObject[];
-  activeTrack: Track;
+  activeTrackUrl: TrackUrl;
   activeAyatNumber: number;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-  handleAyatClick: (track: Track) => void;
+  handleAyatClick: (track: TrackUrl) => void;
   isPlaying: boolean;
   audioPlayerRef: React.MutableRefObject<{
-    [key: Track]: RefObject<HTMLAudioElement>;
+    [key: TrackUrl]: RefObject<HTMLAudioElement>;
   }>;
   handleEnded: (e: SyntheticEvent) => void;
 }
 
 export const AyatList: React.FC<AyatListProps> = ({
   tracksToPlay,
-  activeTrack,
+  activeTrackUrl,
   activeAyatNumber,
   setIsPlaying,
   handleAyatClick,
@@ -30,21 +30,21 @@ export const AyatList: React.FC<AyatListProps> = ({
   handleEnded,
 }) => {
   const cachedAudio = useCachedAssets("audio-cache", [
-    activeAyatNumber,
+    activeTrackUrl,
     isPlaying,
   ]);
 
   return (
     <div className="overflow-y-scroll border scroll-smooth">
-      {tracksToPlay.map(({ ayatNumber, track, trackUrl }) => {
+      {tracksToPlay.map(({ ayatNumber, trackUrl }) => {
         const isCachedTrack = cachedAudio[trackUrl];
         const isActiveTrack =
-          activeTrack === track && track !== REPEAT_SOUND_TRACK;
+          activeTrackUrl === trackUrl && trackUrl !== REPEAT_SOUND_TRACK;
         const isInactiveTrack =
-          activeTrack !== track && track !== REPEAT_SOUND_TRACK;
+          activeTrackUrl !== trackUrl && trackUrl !== REPEAT_SOUND_TRACK;
         return (
           <div
-            key={track}
+            key={trackUrl}
             className="block p-2 border-y border-t-0 w-full even:bg-slate-100 last:hidden"
           >
             <div className="flex">
@@ -56,7 +56,7 @@ export const AyatList: React.FC<AyatListProps> = ({
               {isInactiveTrack && (
                 <button
                   className="w-full flex items-center gap-2"
-                  onClick={() => handleAyatClick(track)}
+                  onClick={() => handleAyatClick(trackUrl)}
                 >
                   <PlayIcon />
                   Play Ayat #{ayatNumber}
@@ -65,9 +65,9 @@ export const AyatList: React.FC<AyatListProps> = ({
               {isCachedTrack && <SaveIcon />}
             </div>
             <audio
-              key={track}
-              id={track}
-              ref={audioPlayerRef.current[track]}
+              key={trackUrl}
+              id={trackUrl}
+              ref={audioPlayerRef.current[trackUrl]}
               preload="true"
               controls={isActiveTrack}
               onEnded={handleEnded}
