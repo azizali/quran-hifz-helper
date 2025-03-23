@@ -1,41 +1,41 @@
 import {
-  type RefObject,
-  type SyntheticEvent,
   createRef,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type RefObject,
+  type SyntheticEvent,
 } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { appName, surahs } from "../_main/config";
-import { type Track, type TrackObject } from "../_main/types";
-import AyatList, { REPEAT_SOUND_TRACK } from "./AyatList";
+import { type TrackUrl } from "../_main/types";
+import AyatList from "./controls/AyatList";
+import PlayControls from "./controls/PlayControls";
+import { defaultQariKey, type QariKey } from "./controls/qari";
 import Header from "./Header";
-import PlayControls from "./PlayControls";
-
-const audioExtention = "mp3"; // 'opus' | 'mp3'
-const audioSrcBaseUrl = `https://everyayah.com/data/Alafasy_64kbps/`;
-// https://mirrors.quranicaudio.com/muqri/alafasi/opus
+import { getActiveAyatNumber, getTracksToPlay } from "./utils";
 
 const QuranApp = () => {
-  const audioPlayerRef = useRef<{ [key: Track]: RefObject<HTMLAudioElement> }>(
-    {}
-  );
+  const audioPlayerRef = useRef<{
+    [key: TrackUrl]: RefObject<HTMLAudioElement>;
+  }>({});
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [activeTrack, setActiveTrack] = useState<Track>("" as Track);
+  const [activeTrackUrl, setActiveTrackUrl] = useState<TrackUrl>(
+    "" as TrackUrl
+  );
+  const [qariKey, setQariKey] = useLocalStorage<QariKey>(
+    "qariKey",
+    defaultQariKey
+  );
   const [surahNumber, setSurahNumber] = useLocalStorage<number>(
     "surahNumber",
     1
   );
-  const [startingAyatNumber, setStartingAyatNumber] = useLocalStorage<number>(
-    "startingAyatNumber",
-    1
-  );
-  const [endingAyatNumber, setEndingAyatNumber] = useLocalStorage<number>(
-    "endingAyatNumber",
-    1
+  const [ayatRange, setAyatRange] = useLocalStorage<[number, number]>(
+    "ayatRange",
+    [1, 1]
   );
   const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>(
     "shouldRepeat",
@@ -47,46 +47,27 @@ const QuranApp = () => {
   }, [surahNumber]);
 
   const tracksToPlay = useMemo(() => {
-    let ayatNumber = startingAyatNumber - 1;
+    const tracksObjects = getTracksToPlay(
+      ayatRange,
+      shouldRepeat,
+      surahNumber,
+      qariKey
+    );
 
-    const trackObjects: TrackObject[] = Array.from({
-      length: endingAyatNumber - ayatNumber,
-    }).map(() => {
-      ayatNumber++;
-
-      const track: Track = `${surahNumber
-        .toString()
-        .padStart(3, "0")}${ayatNumber.toString().padStart(3, "0")}` as Track;
-
-      audioPlayerRef.current[track] = createRef();
-
-      return {
-        surahNumber,
-        ayatNumber,
-        track,
-        trackUrl: `${audioSrcBaseUrl}${track}.${audioExtention}`,
-      };
+    tracksObjects.forEach((trackObject) => {
+      const { trackUrl } = trackObject;
+      audioPlayerRef.current[trackUrl] = createRef();
     });
 
-    if (shouldRepeat) {
-      trackObjects.push({
-        surahNumber,
-        ayatNumber,
-        track: REPEAT_SOUND_TRACK as Track,
-        trackUrl: "/click-sound.mp3",
-      });
-      audioPlayerRef.current[REPEAT_SOUND_TRACK] = createRef();
-    }
-
-    return trackObjects;
-  }, [startingAyatNumber, endingAyatNumber, shouldRepeat, surahNumber]);
+    return tracksObjects;
+  }, [ayatRange, shouldRepeat, surahNumber, qariKey]);
 
   const activeAyatNumber = useMemo(() => {
-    return parseInt(activeTrack.split("").slice(3).join("")) | 0;
-  }, [activeTrack]);
+    return getActiveAyatNumber(activeTrackUrl);
+  }, [activeTrackUrl]);
 
-  const playAyat = (ayatNumber: Track) => {
-    const audioRef = audioPlayerRef.current[ayatNumber]
+  const playAyat = (trackUrl: TrackUrl) => {
+    const audioRef = audioPlayerRef.current[trackUrl]
       .current as HTMLAudioElement;
     audioRef.play();
     setIsPlaying(true);
@@ -99,54 +80,57 @@ const QuranApp = () => {
     }
   };
 
-  const pauseAyat = (ayatNumber: Track) => {
-    const audioRef = audioPlayerRef.current[ayatNumber]
+  const pauseAyat = (trackUrl: TrackUrl) => {
+    const audioRef = audioPlayerRef.current[trackUrl]
       .current as HTMLAudioElement;
     audioRef.pause();
     setIsPlaying(false);
   };
 
   const handleEnded = (e: SyntheticEvent) => {
-    const currentTrack = (e.target as HTMLElement).id;
+    const currentTrackUrl = (e.target as HTMLElement).id;
     const trackIndex = tracksToPlay.findIndex(
-      ({ track }) => track === currentTrack
+      ({ trackUrl }) => trackUrl === currentTrackUrl
     );
-    const nextTrack = tracksToPlay[trackIndex + 1]?.track as Track;
+    const nextTrackUrl = tracksToPlay[trackIndex + 1]?.trackUrl as TrackUrl;
 
-    if (nextTrack) {
-      setActiveTrack(nextTrack);
-      playAyat(nextTrack);
+    if (nextTrackUrl) {
+      setActiveTrackUrl(nextTrackUrl);
+      playAyat(nextTrackUrl);
       return;
     }
     if (shouldRepeat) {
-      const firstTrack = tracksToPlay[0].track;
-      setActiveTrack(firstTrack);
-      playAyat(firstTrack);
+      const firstTrackUrl = tracksToPlay[0].trackUrl;
+      setActiveTrackUrl(firstTrackUrl);
+      playAyat(firstTrackUrl);
       return;
     }
     setIsPlaying(false);
   };
 
-  const handlePlay = useCallback(({ activeTrack }: { activeTrack: Track }) => {
-    try {
-      playAyat(activeTrack);
-    } catch (e) {
-      console.log(e);
-    }
-  }, []);
+  const handlePlay = useCallback(
+    ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
+      try {
+        playAyat(activeTrackUrl);
+      } catch (e) {
+        console.log(e);
+      }
+    },
+    []
+  );
 
-  const handlePause = () => pauseAyat(activeTrack);
+  const handlePause = () => pauseAyat(activeTrackUrl);
 
   const handleReset = () => {
     handleStopAll();
-    const firstTrack: Track = tracksToPlay[0].track;
-    setActiveTrack(firstTrack);
-    handlePlay({ activeTrack: firstTrack });
+    const firstTrackUrl: TrackUrl = tracksToPlay[0].trackUrl;
+    setActiveTrackUrl(firstTrackUrl);
+    handlePlay({ activeTrackUrl: firstTrackUrl });
   };
 
   const handleStopAll = useCallback(() => {
     setIsPlaying(false);
-    const tracks = Object.keys(audioPlayerRef.current) as Array<Track>;
+    const tracks = Object.keys(audioPlayerRef.current) as Array<TrackUrl>;
     tracks.forEach((track) => {
       const elm = audioPlayerRef.current[track]?.current;
       if (!elm) return;
@@ -156,10 +140,10 @@ const QuranApp = () => {
   }, []);
 
   const handleAyatClick = useCallback(
-    (track: Track) => {
+    (trackUrl: TrackUrl) => {
       handleStopAll();
-      setActiveTrack(track);
-      handlePlay({ activeTrack: track });
+      setActiveTrackUrl(trackUrl);
+      handlePlay({ activeTrackUrl: trackUrl });
     },
     [handlePlay, handleStopAll]
   );
@@ -167,35 +151,31 @@ const QuranApp = () => {
   useEffect(() => {
     if (!tracksToPlay.length) return;
     handleStopAll();
-    setActiveTrack(tracksToPlay[0].track);
+    setActiveTrackUrl(tracksToPlay[0].trackUrl);
   }, [tracksToPlay, handleStopAll]);
 
   useEffect(() => {
     document.title = `${surah.number}:${activeAyatNumber} : ${surah.name} - ${appName}`;
   }, [activeAyatNumber, surah]);
 
-  useEffect(() => {
-    if (endingAyatNumber < startingAyatNumber)
-      setEndingAyatNumber(startingAyatNumber);
-  }, [startingAyatNumber, endingAyatNumber, setEndingAyatNumber]);
+  const [startingAyatNumber, _] = ayatRange;
 
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
       <Header appName={appName} />
       <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col ">
         <PlayControls
-          startingAyatNumber={startingAyatNumber}
-          setStartingAyatNumber={setStartingAyatNumber}
-          endingAyatNumber={endingAyatNumber}
-          setEndingAyatNumber={setEndingAyatNumber}
+          qariKey={qariKey}
+          setQariKey={setQariKey}
+          ayatRange={ayatRange}
+          setAyatRange={setAyatRange}
           surah={surah}
-          surahs={surahs}
           surahNumber={surahNumber}
           setSurahNumber={setSurahNumber}
         />
         <AyatList
           tracksToPlay={tracksToPlay}
-          activeTrack={activeTrack}
+          activeTrackUrl={activeTrackUrl}
           activeAyatNumber={activeAyatNumber}
           setIsPlaying={setIsPlaying}
           handleAyatClick={handleAyatClick}
@@ -221,7 +201,7 @@ const QuranApp = () => {
         {!isPlaying && (
           <button
             className="btn bg-primary font-bold text-xl text-white w-full p-3"
-            onClick={() => handlePlay({ activeTrack })}
+            onClick={() => handlePlay({ activeTrackUrl: activeTrackUrl })}
           >
             Play
           </button>
