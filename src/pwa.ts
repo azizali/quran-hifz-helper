@@ -1,11 +1,15 @@
-import { registerSW } from "virtual:pwa-register";
+import { registerSW } from 'virtual:pwa-register'
 
-registerSW({
-  immediate: true,
-  onRegisteredSW(swScriptUrl) {
-    console.log("SW registered: ", swScriptUrl);
+const updateSW = registerSW({
+  onNeedRefresh() {
+    console.log('New content available, please refresh.')
   },
   onOfflineReady() {
-    console.log("PWA application ready to work offline");
+    console.log('PWA application ready to work offline')
   },
-});
+  onRegisteredSW(swScriptUrl) {
+    console.log('SW registered: ', swScriptUrl)
+  },
+})
+
+export { updateSW }
