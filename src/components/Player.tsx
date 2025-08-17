@@ -11,6 +11,7 @@ import {
 import { useLocalStorage } from "usehooks-ts";
 import { appName, surahs } from "../_main/config";
 import { type TrackUrl } from "../_main/types";
+import AudioSessionManager from "../utils/audioSessionManager";
 import AyatList from "./controls/AyatList";
 import PlayControls from "./controls/PlayControls";
 import { defaultQariKey, type QariKey } from "./controls/qari";
@@ -21,6 +22,7 @@ const QuranApp = () => {
   const audioPlayerRef = useRef<{
     [key: TrackUrl]: RefObject<HTMLAudioElement>;
   }>({});
+  const audioSessionManager = useRef<AudioSessionManager>(AudioSessionManager.getInstance());
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeTrackUrl, setActiveTrackUrl] = useState<TrackUrl>(
     "" as TrackUrl
@@ -66,28 +68,73 @@ const QuranApp = () => {
     return getActiveAyatNumber(activeTrackUrl);
   }, [activeTrackUrl]);
 
-  const playAyat = (trackUrl: TrackUrl) => {
-    const audioRef = audioPlayerRef.current[trackUrl]
-      .current as HTMLAudioElement;
-    audioRef.play();
-    setIsPlaying(true);
-
-    const parentElement = audioRef.parentElement as Element;
-    if (parentElement.previousElementSibling) {
-      parentElement.previousElementSibling.scrollIntoView();
-    } else {
-      parentElement.scrollIntoView();
-    }
+  // Enhanced audio session management for background playback
+  const initializeAudioSession = async () => {
+    await audioSessionManager.current.initialize();
   };
 
-  const pauseAyat = (trackUrl: TrackUrl) => {
+  const playAyat = useCallback(async (trackUrl: TrackUrl) => {
+    try {
+      await initializeAudioSession();
+
+      const audioRef = audioPlayerRef.current[trackUrl]
+        .current as HTMLAudioElement;
+      
+      // Ensure audio is loaded before playing
+      if (audioRef.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
+        await new Promise((resolve) => {
+          audioRef.addEventListener('canplaythrough', resolve, { once: true });
+          audioRef.load();
+        });
+      }
+
+      // Set audio attributes for better mobile support
+      audioRef.setAttribute('playsinline', 'true');
+      audioRef.setAttribute('webkit-playsinline', 'true');
+      
+      await audioRef.play();
+      setIsPlaying(true);
+
+      const parentElement = audioRef.parentElement as Element;
+      if (parentElement.previousElementSibling) {
+        parentElement.previousElementSibling.scrollIntoView();
+      } else {
+        parentElement.scrollIntoView();
+      }
+
+      // Update media session for background playback
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: `${surah.name} - Ayat ${getActiveAyatNumber(trackUrl)}`,
+          artist: 'Quran Player',
+          album: surah.name,
+        });
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setIsPlaying(false);
+      
+      // Retry after a short delay
+      setTimeout(() => {
+        playAyat(trackUrl);
+      }, 1000);
+    }
+  }, [surah.name]);
+
+  const pauseAyat = async (trackUrl: TrackUrl) => {
     const audioRef = audioPlayerRef.current[trackUrl]
       .current as HTMLAudioElement;
     audioRef.pause();
     setIsPlaying(false);
+
+    // Update media session
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'paused';
+    }
   };
 
-  const handleEnded = (e: SyntheticEvent) => {
+  const handleEnded = async (e: SyntheticEvent) => {
     const currentTrackUrl = (e.target as HTMLElement).id;
     const trackIndex = tracksToPlay.findIndex(
       ({ trackUrl }) => trackUrl === currentTrackUrl
@@ -96,27 +143,32 @@ const QuranApp = () => {
 
     if (nextTrackUrl) {
       setActiveTrackUrl(nextTrackUrl);
-      playAyat(nextTrackUrl);
+      await playAyat(nextTrackUrl);
       return;
     }
     if (shouldRepeat) {
       const firstTrackUrl = tracksToPlay[0].trackUrl;
       setActiveTrackUrl(firstTrackUrl);
-      playAyat(firstTrackUrl);
+      await playAyat(firstTrackUrl);
       return;
     }
     setIsPlaying(false);
+    
+    // Update media session
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
   };
 
   const handlePlay = useCallback(
-    ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
+    async ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
       try {
-        playAyat(activeTrackUrl);
+        await playAyat(activeTrackUrl);
       } catch (e) {
         console.log(e);
       }
     },
-    []
+    [playAyat]
   );
 
   const handlePause = () => pauseAyat(activeTrackUrl);
@@ -128,8 +180,9 @@ const QuranApp = () => {
     handlePlay({ activeTrackUrl: firstTrackUrl });
   };
 
-  const handleStopAll = useCallback(() => {
+  const handleStopAll = useCallback(async () => {
     setIsPlaying(false);
+    
     const tracks = Object.keys(audioPlayerRef.current) as Array<TrackUrl>;
     tracks.forEach((track) => {
       const elm = audioPlayerRef.current[track]?.current;
@@ -137,6 +190,11 @@ const QuranApp = () => {
       elm.pause();
       elm.currentTime = 0;
     });
+
+    // Update media session
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
   }, []);
 
   const handleAyatClick = useCallback(
@@ -157,6 +215,54 @@ const QuranApp = () => {
   useEffect(() => {
     document.title = `${surah.number}:${activeAyatNumber} : ${surah.name} - ${appName}`;
   }, [activeAyatNumber, surah]);
+
+  // Handle page visibility changes to prevent audio stopping
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isPlaying) {
+        // Page is hidden but audio is playing - try to maintain audio session
+        console.log('Page hidden, maintaining audio session');
+      } else if (!document.hidden && isPlaying) {
+        // Page is visible and audio should be playing - ensure it continues
+        console.log('Page visible, ensuring audio continues');
+        const audioRef = audioPlayerRef.current[activeTrackUrl]?.current;
+        if (audioRef && audioRef.paused) {
+          audioRef.play().catch(console.error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also handle page focus/blur events
+    const handleFocus = () => {
+      if (isPlaying) {
+        const audioRef = audioPlayerRef.current[activeTrackUrl]?.current;
+        if (audioRef && audioRef.paused) {
+          audioRef.play().catch(console.error);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isPlaying, activeTrackUrl]);
+
+  // Initialize audio session manager on mount
+  useEffect(() => {
+    // Initialize audio session manager for background playback
+    audioSessionManager.current.initialize();
+    audioSessionManager.current.setupBackgroundAudioHandlers();
+
+    return () => {
+      // Cleanup - no wake lock to release, just log
+      console.log('Component unmounting - audio session cleaned up');
+    };
+  }, []);
 
   const [startingAyatNumber, _] = ayatRange;
 

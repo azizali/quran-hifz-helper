@@ -68,19 +68,22 @@ export const AyatList: React.FC<AyatListProps> = ({
               key={trackUrl}
               id={trackUrl}
               ref={audioPlayerRef.current[trackUrl]}
-              preload="true"
+              preload="metadata"
               controls={isActiveTrack}
               onEnded={handleEnded}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
+              playsInline
+              crossOrigin="anonymous"
             >
-              <source src={trackUrl} />
+              <source src={trackUrl} type="audio/mpeg" />
               <track
                 src={trackUrl}
                 kind="captions"
                 srcLang="en"
                 label="English"
               />
+              Your browser does not support the audio element.
             </audio>
           </div>
         );

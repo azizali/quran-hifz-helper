@@ -42,12 +42,15 @@ export default defineConfig({
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/everyayah.com\/.*$/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'audio-cache',
+              networkTimeoutSeconds: 10,
               expiration: {
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
               },

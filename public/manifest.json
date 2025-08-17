@@ -29,9 +29,12 @@
   ],
   "orientation": "any",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "dir": "auto",
   "lang": "en-US",
   "name": "Hifz Helper",
   "short_name": "Hifz Helper",
-  "start_url": "./"
+  "start_url": "./",
+  "categories": ["hifz", "productivity", "quran"],
+  "prefer_related_applications": false
 }
