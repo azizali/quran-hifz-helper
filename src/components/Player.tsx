@@ -68,6 +68,10 @@ const QuranApp = () => {
     return getActiveAyatNumber(activeTrackUrl);
   }, [activeTrackUrl]);
 
+  const title = useMemo(() => {
+    return `${surah.name} - Ayat ${activeAyatNumber} / ${surah.numberOfAyats}`;
+  }, [surah.name, activeAyatNumber, surah.numberOfAyats]);
+
   // Enhanced audio session management for background playback
   const initializeAudioSession = async () => {
     await audioSessionManager.current.initialize();
@@ -106,9 +110,9 @@ const QuranApp = () => {
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'playing';
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: `${surah.name} - Ayat ${getActiveAyatNumber(trackUrl)}`,
-          artist: 'Quran Player',
+          title: title,
           album: surah.name,
+          artist: appName,
         });
       }
     } catch (error) {
@@ -213,8 +217,8 @@ const QuranApp = () => {
   }, [tracksToPlay, handleStopAll]);
 
   useEffect(() => {
-    document.title = `${surah.number}:${activeAyatNumber} : ${surah.name} - ${appName}`;
-  }, [activeAyatNumber, surah]);
+    document.title = `${title} - ${appName}`;
+  }, [title]);
 
   // Handle page visibility changes to prevent audio stopping
   useEffect(() => {
