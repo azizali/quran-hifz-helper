@@ -1,4 +1,3 @@
-import type { RefObject, SyntheticEvent } from "react";
 import type { TrackObject, TrackUrl } from "../../_main/types";
 import PlayIcon from "../icons/PlayIcon";
 import SaveIcon from "../icons/SaveIcon";
@@ -10,24 +9,16 @@ interface AyatListProps {
   tracksToPlay: TrackObject[];
   activeTrackUrl: TrackUrl;
   activeAyatNumber: number;
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   handleAyatClick: (track: TrackUrl) => void;
   isPlaying: boolean;
-  audioPlayerRef: React.MutableRefObject<{
-    [key: TrackUrl]: RefObject<HTMLAudioElement>;
-  }>;
-  handleEnded: (e: SyntheticEvent) => void;
 }
 
 export const AyatList: React.FC<AyatListProps> = ({
   tracksToPlay,
   activeTrackUrl,
   activeAyatNumber,
-  setIsPlaying,
   handleAyatClick,
   isPlaying,
-  audioPlayerRef,
-  handleEnded,
 }) => {
   const cachedAudio = useCachedAssets("audio-cache", [
     activeTrackUrl,
@@ -64,27 +55,6 @@ export const AyatList: React.FC<AyatListProps> = ({
               )}
               {isCachedTrack && <SaveIcon />}
             </div>
-            <audio
-              key={trackUrl}
-              id={trackUrl}
-              ref={audioPlayerRef.current[trackUrl]}
-              preload="metadata"
-              controls={isActiveTrack}
-              onEnded={handleEnded}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              playsInline
-              crossOrigin="anonymous"
-            >
-              <source src={trackUrl} type="audio/mpeg" />
-              <track
-                src={trackUrl}
-                kind="captions"
-                srcLang="en"
-                label="English"
-              />
-              Your browser does not support the audio element.
-            </audio>
           </div>
         );
       })}
