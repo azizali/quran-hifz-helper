@@ -41,6 +41,10 @@ const QuranApp = () => {
   const shouldRepeatRef = useRef(true);
   const isPlayingRef = useRef(false);
 
+  // Guard: when true the overlap handler already started the next track,
+  // so the `ended` handler should NOT call advanceToNext again.
+  const advancedEarly = useRef(false);
+
   const audioSessionManager = useRef<AudioSessionManager>(
     AudioSessionManager.getInstance()
   );
@@ -117,18 +121,18 @@ const QuranApp = () => {
     []
   );
 
-  /** Preload the next track on the idle (pending) audio element. */
-  const preloadNext = useCallback((currentTrackUrl: TrackUrl) => {
+  /** Resolve the next track URL (or null if playlist is done). */
+  const getNextTrackUrl = useCallback((currentTrackUrl: TrackUrl): TrackUrl | null => {
     const tracks = tracksRef.current;
     const idx = tracks.findIndex((t) => t.trackUrl === currentTrackUrl);
-    let nextUrl: TrackUrl | null = null;
+    if (idx < tracks.length - 1) return tracks[idx + 1].trackUrl;
+    if (shouldRepeatRef.current && tracks.length > 0) return tracks[0].trackUrl;
+    return null;
+  }, []);
 
-    if (idx < tracks.length - 1) {
-      nextUrl = tracks[idx + 1].trackUrl;
-    } else if (shouldRepeatRef.current && tracks.length > 0) {
-      nextUrl = tracks[0].trackUrl;
-    }
-
+  /** Preload the next track on the idle (pending) audio element. */
+  const preloadNext = useCallback((currentTrackUrl: TrackUrl) => {
+    const nextUrl = getNextTrackUrl(currentTrackUrl);
     if (nextUrl) {
       const pending = getPendingAudio();
       if (pending) {
@@ -137,7 +141,7 @@ const QuranApp = () => {
         pending.load(); // start buffering
       }
     }
-  }, [getPendingAudio]);
+  }, [getPendingAudio, getNextTrackUrl]);
 
   /**
    * Also prefetch a few upcoming audio files into the Cache API / service
@@ -173,6 +177,10 @@ const QuranApp = () => {
     async (trackUrl: TrackUrl) => {
       try {
         await audioSessionManager.current.initialize();
+        // Start the silent keepalive so the OS audio session stays active
+        audioSessionManager.current.startKeepalive();
+
+        advancedEarly.current = false;
 
         const audio = getActiveAudio();
         if (!audio) return;
@@ -181,7 +189,6 @@ const QuranApp = () => {
         const pending = getPendingAudio();
         if (pending && pending.src && pending.src === trackUrl) {
           activeElement.current = activeElement.current === "A" ? "B" : "A";
-          // Now getActiveAudio() returns the element that has the track
           const ready = getActiveAudio();
           await ready.play();
         } else {
@@ -210,6 +217,7 @@ const QuranApp = () => {
     const audio = getActiveAudio();
     if (audio) audio.pause();
     setIsPlaying(false);
+    audioSessionManager.current.stopKeepalive();
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = "paused";
     }
@@ -217,23 +225,20 @@ const QuranApp = () => {
 
   /**
    * Core playlist advancement.
-   * Called when the active element fires `ended`.
-   * The pending element already has the next track buffered — just swap & play.
+   *
+   * Called in two situations:
+   *   1. From the `timeupdate` overlap handler (~300 ms before current track
+   *      ends) — sets `advancedEarly = true` so `ended` doesn't double-fire.
+   *   2. From the `ended` handler as a fallback if the overlap didn't fire
+   *      (e.g. very short track, or timeupdate didn't trigger in time).
    */
   const advanceToNext = useCallback(() => {
     const currentUrl = activeTrackUrlRef.current;
-    const tracks = tracksRef.current;
-    const idx = tracks.findIndex((t) => t.trackUrl === currentUrl);
-    let nextUrl: TrackUrl | null = null;
-
-    if (idx < tracks.length - 1) {
-      nextUrl = tracks[idx + 1].trackUrl;
-    } else if (shouldRepeatRef.current && tracks.length > 0) {
-      nextUrl = tracks[0].trackUrl;
-    }
+    const nextUrl = getNextTrackUrl(currentUrl);
 
     if (!nextUrl) {
       setIsPlaying(false);
+      audioSessionManager.current.stopKeepalive();
       if ("mediaSession" in navigator) {
         navigator.mediaSession.playbackState = "none";
       }
@@ -245,7 +250,6 @@ const QuranApp = () => {
     const nowActive = getActiveAudio();
 
     // The pending element should already have nextUrl loaded.
-    // If for some reason it doesn't (cache miss, race condition), set it now.
     if (!nowActive.src || nowActive.src !== nextUrl) {
       nowActive.src = nextUrl;
     }
@@ -259,7 +263,6 @@ const QuranApp = () => {
         if ("mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
-        // Preload the track after this one on the now-idle element
         preloadNext(nextUrl!);
         prefetchUpcoming(nextUrl!);
       })
@@ -267,7 +270,7 @@ const QuranApp = () => {
         console.error("Error advancing track:", err);
         setIsPlaying(false);
       });
-  }, [getActiveAudio, preloadNext, prefetchUpcoming]);
+  }, [getActiveAudio, getNextTrackUrl, preloadNext, prefetchUpcoming]);
 
   const handlePlay = useCallback(
     async ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
@@ -284,6 +287,8 @@ const QuranApp = () => {
 
   const handleStopAll = useCallback(() => {
     setIsPlaying(false);
+    advancedEarly.current = false;
+    audioSessionManager.current.stopKeepalive();
     [audioRefA.current, audioRefB.current].forEach((audio) => {
       if (audio) {
         audio.pause();
@@ -413,16 +418,43 @@ const QuranApp = () => {
   const [startingAyatNumber] = ayatRange;
 
   /**
-   * Shared `onEnded` handler wired to both audio elements.
-   * Only the *active* element should trigger advancement; the pending
-   * element reaching ended is a no-op (shouldn't happen normally).
+   * `timeupdate` handler — starts the next track ~300 ms before the current
+   * one finishes.  This overlap guarantees at least one <audio> element is
+   * always playing, which prevents mobile browsers from suspending the page.
+   */
+  const onTimeUpdate = useCallback(
+    (element: "A" | "B") => {
+      if (element !== activeElement.current) return;
+      if (advancedEarly.current) return;
+
+      const audio = element === "A" ? audioRefA.current : audioRefB.current;
+      if (!audio || !audio.duration || !isFinite(audio.duration)) return;
+
+      const remaining = audio.duration - audio.currentTime;
+      if (remaining <= 0.3 && remaining > 0) {
+        advancedEarly.current = true;
+        advanceToNext();
+      }
+    },
+    [advanceToNext]
+  );
+
+  const onTimeUpdateA = useCallback(() => onTimeUpdate("A"), [onTimeUpdate]);
+  const onTimeUpdateB = useCallback(() => onTimeUpdate("B"), [onTimeUpdate]);
+
+  /**
+   * `ended` handler — fallback in case `timeupdate` didn't fire close enough
+   * to the end (very short tracks, etc.).
    */
   const onEndedA = useCallback(() => {
-    if (activeElement.current === "A") advanceToNext();
+    if (activeElement.current === "A" && !advancedEarly.current) advanceToNext();
+    // If we advanced early, just reset the flag for the next cycle
+    if (advancedEarly.current) advancedEarly.current = false;
   }, [advanceToNext]);
 
   const onEndedB = useCallback(() => {
-    if (activeElement.current === "B") advanceToNext();
+    if (activeElement.current === "B" && !advancedEarly.current) advanceToNext();
+    if (advancedEarly.current) advancedEarly.current = false;
   }, [advanceToNext]);
 
   return (
@@ -444,8 +476,20 @@ const QuranApp = () => {
           This prevents the fetch/buffer gap that caused mobile browsers to
           kill the audio session when the screen was off.
         */}
-        <audio ref={audioRefA} preload="auto" playsInline onEnded={onEndedA} />
-        <audio ref={audioRefB} preload="auto" playsInline onEnded={onEndedB} />
+        <audio
+          ref={audioRefA}
+          preload="auto"
+          playsInline
+          onEnded={onEndedA}
+          onTimeUpdate={onTimeUpdateA}
+        />
+        <audio
+          ref={audioRefB}
+          preload="auto"
+          playsInline
+          onEnded={onEndedB}
+          onTimeUpdate={onTimeUpdateB}
+        />
         <AyatList
           tracksToPlay={tracksToPlay}
           activeTrackUrl={activeTrackUrl}
