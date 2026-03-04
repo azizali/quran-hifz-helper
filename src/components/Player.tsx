@@ -16,43 +16,48 @@ import Header from "./Header";
 import { getActiveAyatNumber, getTracksToPlay } from "./utils";
 
 /**
- * Double-buffered audio player.
+ * Concatenated-blob audio player.
  *
- * Two <audio> elements (A and B) alternate roles:
- *   - The "active" element is the one currently producing sound.
- *   - The "pending" element silently preloads the *next* track.
+ * Instead of separate <audio> elements per ayat (which causes mobile browsers
+ * to suspend the page during JavaScript-mediated track transitions), this
+ * player:
  *
- * When the active element fires `ended`, we instantly `.play()` on the
- * pending element (already buffered → no network wait) and start preloading
- * the track after that on the now-idle element.
+ *   1. Fetches every MP3 file for the selected ayat range
+ *   2. Concatenates the raw bytes into a single Blob  (MP3 frames are
+ *      self-contained so raw concatenation produces a valid stream)
+ *   3. Plays the blob on ONE <audio> element
  *
- * This eliminates the fetch/buffer gap that caused mobile browsers to
- * consider the audio session idle and suspend the page while the screen
- * was off.
+ * The browser sees a single continuous audio file — zero gaps between ayats,
+ * zero JavaScript needed between tracks, and the OS audio session never
+ * drops, even with the screen off and phone locked.
  */
+
+interface TrackSegment {
+  trackUrl: TrackUrl;
+  byteOffset: number;
+  byteLength: number;
+  startTime: number;
+  endTime: number;
+}
+
 const QuranApp = () => {
-  const audioRefA = useRef<HTMLAudioElement>(null);
-  const audioRefB = useRef<HTMLAudioElement>(null);
-
-  // Which element is currently playing: "A" or "B"
-  const activeElement = useRef<"A" | "B">("A");
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
+  const segmentsRef = useRef<TrackSegment[]>([]);
+  const totalBytesRef = useRef(0);
   const activeTrackUrlRef = useRef<TrackUrl>("" as TrackUrl);
-  const tracksRef = useRef<ReturnType<typeof getTracksToPlay>>([]);
   const shouldRepeatRef = useRef(true);
-  const isPlayingRef = useRef(false);
-
-  // Guard: when true the overlap handler already started the next track,
-  // so the `ended` handler should NOT call advanceToNext again.
-  const advancedEarly = useRef(false);
-
-  const audioSessionManager = useRef<AudioSessionManager>(
-    AudioSessionManager.getInstance()
-  );
+  const userWantsToPlayRef = useRef(false);
+  const loadingRef = useRef(false);
+  const currentBlobCacheKey = useRef<string | null>(null);
+  const audioSessionManager = useRef(AudioSessionManager.getInstance());
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTrackUrl, setActiveTrackUrl] = useState<TrackUrl>(
     "" as TrackUrl
   );
+
   const [qariKey, setQariKey] = useLocalStorage<QariKey>(
     "qariKey",
     defaultQariKey
@@ -70,10 +75,13 @@ const QuranApp = () => {
     true
   );
 
-  // Keep refs in sync so event handlers always see latest values
+  // Keep refs in sync so event handlers always read the latest value
   useEffect(() => {
     activeTrackUrlRef.current = activeTrackUrl;
   }, [activeTrackUrl]);
+  useEffect(() => {
+    shouldRepeatRef.current = shouldRepeat;
+  }, [shouldRepeat]);
 
   const surah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
@@ -81,17 +89,6 @@ const QuranApp = () => {
     () => getTracksToPlay(ayatRange, shouldRepeat, surahNumber, qariKey),
     [ayatRange, shouldRepeat, surahNumber, qariKey]
   );
-
-  // Keep refs in sync
-  useEffect(() => {
-    tracksRef.current = tracksToPlay;
-  }, [tracksToPlay]);
-  useEffect(() => {
-    shouldRepeatRef.current = shouldRepeat;
-  }, [shouldRepeat]);
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
 
   const activeAyatNumber = useMemo(
     () => getActiveAyatNumber(activeTrackUrl),
@@ -105,220 +102,423 @@ const QuranApp = () => {
 
   // ── helpers ──────────────────────────────────────────────────────────
 
-  const getActiveAudio = useCallback(
-    () =>
-      activeElement.current === "A"
-        ? audioRefA.current!
-        : audioRefB.current!,
+  /** Deterministic cache key for a set of tracks — same tracks always = same key. */
+  const blobCacheKey = useCallback(
+    (tracks: ReturnType<typeof getTracksToPlay>) =>
+      "playlist-blob:" + tracks.map((t) => t.trackUrl).join("|"),
     []
   );
 
-  const getPendingAudio = useCallback(
-    () =>
-      activeElement.current === "A"
-        ? audioRefB.current!
-        : audioRefA.current!,
-    []
-  );
-
-  /** Resolve the next track URL (or null if playlist is done). */
-  const getNextTrackUrl = useCallback((currentTrackUrl: TrackUrl): TrackUrl | null => {
-    const tracks = tracksRef.current;
-    const idx = tracks.findIndex((t) => t.trackUrl === currentTrackUrl);
-    if (idx < tracks.length - 1) return tracks[idx + 1].trackUrl;
-    if (shouldRepeatRef.current && tracks.length > 0) return tracks[0].trackUrl;
-    return null;
+  const cleanupBlobUrl = useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
   }, []);
 
-  /** Preload the next track on the idle (pending) audio element. */
-  const preloadNext = useCallback((currentTrackUrl: TrackUrl) => {
-    const nextUrl = getNextTrackUrl(currentTrackUrl);
-    if (nextUrl) {
-      const pending = getPendingAudio();
-      if (pending) {
-        pending.src = nextUrl;
-        pending.preload = "auto";
-        pending.load(); // start buffering
+  /** Fetch an audio file, trying the Cache API first. */
+  const fetchAudio = useCallback(async (url: string): Promise<ArrayBuffer> => {
+    if ("caches" in window) {
+      try {
+        const cache = await caches.open("audio-cache");
+        const hit = await cache.match(url);
+        if (hit) return hit.arrayBuffer();
+      } catch {
+        /* cache miss — fall through */
       }
     }
-  }, [getPendingAudio, getNextTrackUrl]);
+
+    const resp = await fetch(url, { mode: "cors" });
+    if (!resp.ok) throw new Error(`Fetch failed: ${url} (${resp.status})`);
+
+    if ("caches" in window) {
+      try {
+        const cache = await caches.open("audio-cache");
+        cache.put(url, resp.clone());
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return resp.arrayBuffer();
+  }, []);
 
   /**
-   * Also prefetch a few upcoming audio files into the Cache API / service
-   * worker cache so that even the preload <audio> hits cache instead of
-   * the network.
+   * Build (or retrieve from cache) a single MP3 blob for the playlist.
+   *
+   * The concatenated blob is stored in the Cache API under a deterministic
+   * key derived from the track URLs.  On subsequent plays with the same
+   * ayat range / qari, the blob is loaded straight from cache — no
+   * re-fetching or re-concatenating.
    */
-  const prefetchUpcoming = useCallback((currentTrackUrl: TrackUrl) => {
-    const tracks = tracksRef.current;
-    const idx = tracks.findIndex((t) => t.trackUrl === currentTrackUrl);
-    // Prefetch next 3 tracks
-    const toFetch = tracks.slice(idx + 1, idx + 4).map((t) => t.trackUrl);
+  const buildPlaylistBlob = useCallback(
+    async (tracks: ReturnType<typeof getTracksToPlay>) => {
+      const cacheKey = blobCacheKey(tracks);
 
-    if ("caches" in window && toFetch.length) {
-      caches.open("audio-cache").then((cache) => {
-        toFetch.forEach((url) => {
-          cache.match(url).then((hit) => {
-            if (!hit) {
-              fetch(url, { mode: "cors" })
-                .then((resp) => {
-                  if (resp.ok) cache.put(url, resp);
-                })
-                .catch(() => {});
+      // ── Try the cache first ──────────────────────────────────────────
+      if ("caches" in window) {
+        try {
+          const cache = await caches.open("playlist-blob-cache");
+          const hit = await cache.match(cacheKey);
+          if (hit) {
+            const buf = await hit.arrayBuffer();
+
+            // Rebuild segment metadata from per-track sizes stored in a header.
+            const headerResp = await cache.match(cacheKey + ":meta");
+            if (headerResp) {
+              const meta = await headerResp.json() as { sizes: number[] };
+              const segments: TrackSegment[] = [];
+              let offset = 0;
+              for (let i = 0; i < tracks.length; i++) {
+                const byteLen = meta.sizes[i] ?? 0;
+                segments.push({
+                  trackUrl: tracks[i].trackUrl,
+                  byteOffset: offset,
+                  byteLength: byteLen,
+                  startTime: 0,
+                  endTime: 0,
+                });
+                offset += byteLen;
+              }
+
+              const blob = new Blob([new Uint8Array(buf)], { type: "audio/mpeg" });
+              currentBlobCacheKey.current = cacheKey;
+              return {
+                blobUrl: URL.createObjectURL(blob),
+                segments,
+                totalBytes: offset,
+              };
             }
-          });
+          }
+        } catch {
+          /* cache miss — fall through to build */
+        }
+      }
+
+      // ── Build from individual tracks ─────────────────────────────────
+      const fetched = await Promise.all(
+        tracks.map(async (t) => ({
+          trackUrl: t.trackUrl,
+          buffer: await fetchAudio(t.trackUrl),
+        }))
+      );
+
+      const segments: TrackSegment[] = [];
+      let offset = 0;
+      for (const { trackUrl, buffer } of fetched) {
+        segments.push({
+          trackUrl,
+          byteOffset: offset,
+          byteLength: buffer.byteLength,
+          startTime: 0,
+          endTime: 0,
         });
-      });
+        offset += buffer.byteLength;
+      }
+
+      const blob = new Blob(
+        fetched.map((f) => new Uint8Array(f.buffer)),
+        { type: "audio/mpeg" }
+      );
+
+      // ── Store in cache for next time ─────────────────────────────────
+      if ("caches" in window) {
+        try {
+          const cache = await caches.open("playlist-blob-cache");
+          await cache.put(
+            cacheKey,
+            new Response(blob.slice(0), {
+              headers: { "Content-Type": "audio/mpeg" },
+            })
+          );
+          // Store per-track byte sizes so we can rebuild segments later
+          await cache.put(
+            cacheKey + ":meta",
+            new Response(
+              JSON.stringify({ sizes: fetched.map((f) => f.buffer.byteLength) }),
+              { headers: { "Content-Type": "application/json" } }
+            )
+          );
+        } catch {
+          /* non-critical */
+        }
+      }
+
+      currentBlobCacheKey.current = cacheKey;
+      return {
+        blobUrl: URL.createObjectURL(blob),
+        segments,
+        totalBytes: offset,
+      };
+    },
+    [fetchAudio, blobCacheKey]
+  );
+
+  /**
+   * Convert byte-offset segments to time-offset segments using the audio's
+   * real duration (available after `loadedmetadata`). Uses a byte-proportional
+   * estimate — accurate for CBR, close enough for VBR/UI purposes.
+   */
+  const finalizeSegments = useCallback(
+    (segments: TrackSegment[], totalBytes: number, totalDuration: number) => {
+      let t = 0;
+      for (const seg of segments) {
+        seg.startTime = t;
+        const segDuration = (seg.byteLength / totalBytes) * totalDuration;
+        seg.endTime = t + segDuration;
+        t = seg.endTime;
+      }
+    },
+    []
+  );
+
+  /** Find which segment `currentTime` falls in. */
+  const segmentAtTime = useCallback((time: number): TrackSegment | null => {
+    const segs = segmentsRef.current;
+    for (let i = segs.length - 1; i >= 0; i--) {
+      if (time >= segs[i].startTime - 0.05) return segs[i];
     }
+    return segs[0] ?? null;
   }, []);
 
   // ── playback controls ────────────────────────────────────────────────
 
-  const playAyat = useCallback(
-    async (trackUrl: TrackUrl) => {
+  const startPlayback = useCallback(
+    async (seekToTrackUrl?: TrackUrl) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+      setIsLoading(true);
+
       try {
         await audioSessionManager.current.initialize();
-        // Start the silent keepalive so the OS audio session stays active
         audioSessionManager.current.startKeepalive();
 
-        advancedEarly.current = false;
+        const { blobUrl, segments, totalBytes } =
+          await buildPlaylistBlob(tracksToPlay);
 
-        const audio = getActiveAudio();
+        cleanupBlobUrl();
+        blobUrlRef.current = blobUrl;
+        totalBytesRef.current = totalBytes;
+
+        const audio = audioRef.current;
         if (!audio) return;
 
-        // If the pending element already has this track loaded, swap to it
-        const pending = getPendingAudio();
-        if (pending && pending.src && pending.src === trackUrl) {
-          activeElement.current = activeElement.current === "A" ? "B" : "A";
-          const ready = getActiveAudio();
-          await ready.play();
-        } else {
-          audio.src = trackUrl;
-          await audio.play();
+        audio.src = blobUrl;
+        audio.loop = shouldRepeatRef.current;
+        await new Promise<void>((resolve, reject) => {
+          if (audio.readyState >= 1) {
+            resolve();
+            return;
+          }
+          const onMeta = () => {
+            audio.removeEventListener("loadedmetadata", onMeta);
+            audio.removeEventListener("error", onErr);
+            resolve();
+          };
+          const onErr = () => {
+            audio.removeEventListener("loadedmetadata", onMeta);
+            audio.removeEventListener("error", onErr);
+            reject(new Error("Audio load error"));
+          };
+          audio.addEventListener("loadedmetadata", onMeta);
+          audio.addEventListener("error", onErr);
+        });
+
+        // Convert byte offsets → time offsets now that we know total duration
+        finalizeSegments(segments, totalBytes, audio.duration);
+        segmentsRef.current = segments;
+
+        // Seek to a specific ayat if requested
+        if (seekToTrackUrl) {
+          const target = segments.find((s) => s.trackUrl === seekToTrackUrl);
+          if (target) audio.currentTime = target.startTime;
         }
 
+        const firstUrl =
+          seekToTrackUrl ||
+          (segments.length > 0 ? segments[0].trackUrl : ("" as TrackUrl));
+        setActiveTrackUrl(firstUrl);
+
+        userWantsToPlayRef.current = true;
+        await audio.play();
         setIsPlaying(true);
+
         if ("mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
-
-        // Start preloading the next track on the idle element
-        preloadNext(trackUrl);
-        // Also prefetch a few upcoming tracks into Cache API
-        prefetchUpcoming(trackUrl);
-      } catch (error) {
-        console.error("Error playing audio:", error);
+      } catch (err) {
+        console.error("Error starting playback:", err);
         setIsPlaying(false);
+      } finally {
+        loadingRef.current = false;
+        setIsLoading(false);
       }
     },
-    [getActiveAudio, getPendingAudio, preloadNext, prefetchUpcoming]
+    [tracksToPlay, buildPlaylistBlob, cleanupBlobUrl, finalizeSegments]
   );
 
-  const pauseAyat = useCallback(() => {
-    const audio = getActiveAudio();
+  const resumePlayback = useCallback(async () => {
+    const audio = audioRef.current;
+    if (!audio || !audio.src) return;
+    await audioSessionManager.current.initialize();
+    audioSessionManager.current.startKeepalive();
+    userWantsToPlayRef.current = true;
+    await audio.play();
+    setIsPlaying(true);
+    if ("mediaSession" in navigator)
+      navigator.mediaSession.playbackState = "playing";
+  }, []);
+
+  const pausePlayback = useCallback(() => {
+    userWantsToPlayRef.current = false;
+    const audio = audioRef.current;
     if (audio) audio.pause();
     setIsPlaying(false);
     audioSessionManager.current.stopKeepalive();
-    if ("mediaSession" in navigator) {
+    if ("mediaSession" in navigator)
       navigator.mediaSession.playbackState = "paused";
-    }
-  }, [getActiveAudio]);
-
-  /**
-   * Core playlist advancement.
-   *
-   * Called in two situations:
-   *   1. From the `timeupdate` overlap handler (~300 ms before current track
-   *      ends) — sets `advancedEarly = true` so `ended` doesn't double-fire.
-   *   2. From the `ended` handler as a fallback if the overlap didn't fire
-   *      (e.g. very short track, or timeupdate didn't trigger in time).
-   */
-  const advanceToNext = useCallback(() => {
-    const currentUrl = activeTrackUrlRef.current;
-    const nextUrl = getNextTrackUrl(currentUrl);
-
-    if (!nextUrl) {
-      setIsPlaying(false);
-      audioSessionManager.current.stopKeepalive();
-      if ("mediaSession" in navigator) {
-        navigator.mediaSession.playbackState = "none";
-      }
-      return;
-    }
-
-    // Swap active/pending
-    activeElement.current = activeElement.current === "A" ? "B" : "A";
-    const nowActive = getActiveAudio();
-
-    // The pending element should already have nextUrl loaded.
-    if (!nowActive.src || nowActive.src !== nextUrl) {
-      nowActive.src = nextUrl;
-    }
-
-    setActiveTrackUrl(nextUrl);
-
-    nowActive
-      .play()
-      .then(() => {
-        setIsPlaying(true);
-        if ("mediaSession" in navigator) {
-          navigator.mediaSession.playbackState = "playing";
-        }
-        preloadNext(nextUrl!);
-        prefetchUpcoming(nextUrl!);
-      })
-      .catch((err) => {
-        console.error("Error advancing track:", err);
-        setIsPlaying(false);
-      });
-  }, [getActiveAudio, getNextTrackUrl, preloadNext, prefetchUpcoming]);
-
-  const handlePlay = useCallback(
-    async ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
-      try {
-        await playAyat(activeTrackUrl);
-      } catch (e) {
-        console.log(e);
-      }
-    },
-    [playAyat]
-  );
-
-  const handlePause = () => pauseAyat();
-
-  const handleStopAll = useCallback(() => {
-    setIsPlaying(false);
-    advancedEarly.current = false;
-    audioSessionManager.current.stopKeepalive();
-    [audioRefA.current, audioRefB.current].forEach((audio) => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.removeAttribute("src");
-        audio.load();
-      }
-    });
-    if ("mediaSession" in navigator) {
-      navigator.mediaSession.playbackState = "none";
-    }
   }, []);
 
-  const handleReset = () => {
+  const handleStopAll = useCallback(() => {
+    userWantsToPlayRef.current = false;
+    loadingRef.current = false;
+    setIsPlaying(false);
+    setIsLoading(false);
+    audioSessionManager.current.stopKeepalive();
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    cleanupBlobUrl();
+    segmentsRef.current = [];
+    if ("mediaSession" in navigator)
+      navigator.mediaSession.playbackState = "none";
+  }, [cleanupBlobUrl]);
+
+  const handlePlay = useCallback(async () => {
+    // If a blob is already loaded, just resume
+    if (
+      blobUrlRef.current &&
+      audioRef.current &&
+      audioRef.current.readyState > 0
+    ) {
+      await resumePlayback();
+    } else {
+      await startPlayback();
+    }
+  }, [resumePlayback, startPlayback]);
+
+  const handlePause = useCallback(() => pausePlayback(), [pausePlayback]);
+
+  const handleReset = useCallback(() => {
     handleStopAll();
-    activeElement.current = "A";
-    const firstTrackUrl: TrackUrl = tracksToPlay[0].trackUrl;
-    setActiveTrackUrl(firstTrackUrl);
-    handlePlay({ activeTrackUrl: firstTrackUrl });
-  };
+    startPlayback();
+  }, [handleStopAll, startPlayback]);
 
   const handleAyatClick = useCallback(
     (trackUrl: TrackUrl) => {
+      const audio = audioRef.current;
+
+      // If the blob is already loaded, just seek within it
+      if (audio && blobUrlRef.current && segmentsRef.current.length > 0) {
+        const target = segmentsRef.current.find(
+          (s) => s.trackUrl === trackUrl
+        );
+        if (target) {
+          audio.currentTime = target.startTime;
+          setActiveTrackUrl(trackUrl);
+          if (!userWantsToPlayRef.current) {
+            resumePlayback();
+          }
+          return;
+        }
+      }
+
+      // Otherwise rebuild the blob starting from that ayat
       handleStopAll();
-      activeElement.current = "A";
-      setActiveTrackUrl(trackUrl);
-      handlePlay({ activeTrackUrl: trackUrl });
+      startPlayback(trackUrl);
     },
-    [handlePlay, handleStopAll]
+    [resumePlayback, handleStopAll, startPlayback]
   );
+
+  // ── audio event handlers ─────────────────────────────────────────────
+
+  /** Determine which ayat is currently playing based on currentTime. */
+  const onTimeUpdate = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const seg = segmentAtTime(audio.currentTime);
+    if (seg && seg.trackUrl !== activeTrackUrlRef.current) {
+      setActiveTrackUrl(seg.trackUrl);
+
+      // Keep the lock-screen / notification controls aware of progress.
+      // Updated on each ayat change rather than every timeupdate to avoid
+      // excessive calls.
+      if ("mediaSession" in navigator && isFinite(audio.duration)) {
+        try {
+          navigator.mediaSession.setPositionState?.({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: audio.currentTime,
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [segmentAtTime]);
+
+  /**
+   * Fires only when repeat is OFF and the playlist truly ends.
+   * When repeat is ON, audio.loop handles looping natively inside the
+   * browser's media engine — no JS .play() call needed, works even with
+   * the screen off.
+   */
+  const onEnded = useCallback(() => {
+    userWantsToPlayRef.current = false;
+    setIsPlaying(false);
+    audioSessionManager.current.stopKeepalive();
+    if ("mediaSession" in navigator)
+      navigator.mediaSession.playbackState = "none";
+  }, []);
+
+  /**
+   * Auto-resume when the browser/OS pauses audio unexpectedly (e.g. incoming
+   * call ends, notification sound, or iOS background suspension).
+   * Only resumes if the user intended playback to continue.
+   */
+  const onPause = useCallback(() => {
+    if (!userWantsToPlayRef.current) return;
+    const audio = audioRef.current;
+    if (!audio || !audio.src) return;
+
+    // Small delay — let the browser settle (e.g. after an interruption)
+    setTimeout(() => {
+      if (userWantsToPlayRef.current && audio.paused && audio.src) {
+        audioSessionManager.current.ensureAudioContext();
+        audio.play().catch(() => {});
+      }
+    }, 300);
+  }, []);
+
+  /**
+   * Recovery when audio stalls (e.g. buffer underrun after background).
+   */
+  const onStalled = useCallback(() => {
+    if (!userWantsToPlayRef.current) return;
+    const audio = audioRef.current;
+    if (!audio || !audio.src) return;
+
+    setTimeout(() => {
+      if (userWantsToPlayRef.current && audio.paused && audio.src) {
+        audioSessionManager.current.ensureAudioContext();
+        audio.play().catch(() => {});
+      }
+    }, 500);
+  }, []);
 
   // ── effects ──────────────────────────────────────────────────────────
 
@@ -326,7 +526,6 @@ const QuranApp = () => {
   useEffect(() => {
     if (!tracksToPlay.length) return;
     handleStopAll();
-    activeElement.current = "A";
     setActiveTrackUrl(tracksToPlay[0].trackUrl);
   }, [tracksToPlay, handleStopAll]);
 
@@ -346,42 +545,34 @@ const QuranApp = () => {
     }
   }, [activeTrackUrl, surah.name, activeAyatNumber]);
 
-  // Media Session action handlers (lock screen controls)
+  // Media Session action handlers (lock screen / notification controls)
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
 
-    navigator.mediaSession.setActionHandler("play", () => {
-      const audio = getActiveAudio();
-      if (audio && audio.src) {
-        audio
-          .play()
-          .then(() => {
-            setIsPlaying(true);
-            navigator.mediaSession.playbackState = "playing";
-          })
-          .catch(console.error);
-      }
-    });
-
-    navigator.mediaSession.setActionHandler("pause", () => pauseAyat());
+    navigator.mediaSession.setActionHandler("play", () => resumePlayback());
+    navigator.mediaSession.setActionHandler("pause", () => pausePlayback());
     navigator.mediaSession.setActionHandler("stop", () => handleStopAll());
 
     navigator.mediaSession.setActionHandler("previoustrack", () => {
-      const currentUrl = activeTrackUrlRef.current;
-      const idx = tracksRef.current.findIndex(
-        (t) => t.trackUrl === currentUrl
+      const segs = segmentsRef.current;
+      const idx = segs.findIndex(
+        (s) => s.trackUrl === activeTrackUrlRef.current
       );
-      if (idx > 0) {
-        const prev = tracksRef.current[idx - 1].trackUrl;
-        handleStopAll();
-        activeElement.current = "A";
-        setActiveTrackUrl(prev);
-        playAyat(prev);
+      if (idx > 0 && audioRef.current) {
+        audioRef.current.currentTime = segs[idx - 1].startTime;
+        setActiveTrackUrl(segs[idx - 1].trackUrl);
       }
     });
 
     navigator.mediaSession.setActionHandler("nexttrack", () => {
-      advanceToNext();
+      const segs = segmentsRef.current;
+      const idx = segs.findIndex(
+        (s) => s.trackUrl === activeTrackUrlRef.current
+      );
+      if (idx >= 0 && idx < segs.length - 1 && audioRef.current) {
+        audioRef.current.currentTime = segs[idx + 1].startTime;
+        setActiveTrackUrl(segs[idx + 1].trackUrl);
+      }
     });
 
     return () => {
@@ -391,71 +582,66 @@ const QuranApp = () => {
       navigator.mediaSession.setActionHandler("previoustrack", null);
       navigator.mediaSession.setActionHandler("nexttrack", null);
     };
-  }, [playAyat, pauseAyat, handleStopAll, advanceToNext, getActiveAudio]);
+  }, [resumePlayback, pausePlayback, handleStopAll]);
 
-  // When page becomes visible again, resume if interrupted
+  // Safety net: resume playback when the page becomes visible again
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && isPlayingRef.current) {
-        const audio = getActiveAudio();
+    const handler = () => {
+      if (!document.hidden && userWantsToPlayRef.current) {
+        const audio = audioRef.current;
         if (audio && audio.paused && audio.src) {
+          audioSessionManager.current.ensureAudioContext();
           audio.play().catch(console.error);
+        }
+
+        // Update Media Session position state when coming back to foreground
+        if (audio && !audio.paused && isFinite(audio.duration)) {
+          try {
+            navigator.mediaSession?.setPositionState?.({
+              duration: audio.duration,
+              playbackRate: audio.playbackRate,
+              position: audio.currentTime,
+            });
+          } catch {
+            /* ignore */
+          }
         }
       }
     };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [getActiveAudio]);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+
+  // Watchdog: periodically check if audio should be playing but isn't.
+  // Fires every 5 s — throttled in background by the browser but will
+  // run once the page regains focus, acting as a second safety net.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!userWantsToPlayRef.current) return;
+      const audio = audioRef.current;
+      if (audio && audio.paused && audio.src) {
+        audioSessionManager.current.ensureAudioContext();
+        audio.play().catch(() => {});
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   // Initialize audio session on mount
   useEffect(() => {
     audioSessionManager.current.initialize();
   }, []);
 
+  // When shouldRepeat is toggled mid-playback, sync audio.loop immediately.
+  // audio.loop is handled natively by the browser — no JS .play() needed.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) audio.loop = shouldRepeat;
+  }, [shouldRepeat]);
+
   // ── render ───────────────────────────────────────────────────────────
 
   const [startingAyatNumber] = ayatRange;
-
-  /**
-   * `timeupdate` handler — starts the next track ~300 ms before the current
-   * one finishes.  This overlap guarantees at least one <audio> element is
-   * always playing, which prevents mobile browsers from suspending the page.
-   */
-  const onTimeUpdate = useCallback(
-    (element: "A" | "B") => {
-      if (element !== activeElement.current) return;
-      if (advancedEarly.current) return;
-
-      const audio = element === "A" ? audioRefA.current : audioRefB.current;
-      if (!audio || !audio.duration || !isFinite(audio.duration)) return;
-
-      const remaining = audio.duration - audio.currentTime;
-      if (remaining <= 0.3 && remaining > 0) {
-        advancedEarly.current = true;
-        advanceToNext();
-      }
-    },
-    [advanceToNext]
-  );
-
-  const onTimeUpdateA = useCallback(() => onTimeUpdate("A"), [onTimeUpdate]);
-  const onTimeUpdateB = useCallback(() => onTimeUpdate("B"), [onTimeUpdate]);
-
-  /**
-   * `ended` handler — fallback in case `timeupdate` didn't fire close enough
-   * to the end (very short tracks, etc.).
-   */
-  const onEndedA = useCallback(() => {
-    if (activeElement.current === "A" && !advancedEarly.current) advanceToNext();
-    // If we advanced early, just reset the flag for the next cycle
-    if (advancedEarly.current) advancedEarly.current = false;
-  }, [advanceToNext]);
-
-  const onEndedB = useCallback(() => {
-    if (activeElement.current === "B" && !advancedEarly.current) advanceToNext();
-    if (advancedEarly.current) advancedEarly.current = false;
-  }, [advanceToNext]);
 
   return (
     <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
@@ -471,24 +657,19 @@ const QuranApp = () => {
           setSurahNumber={setSurahNumber}
         />
         {/*
-          Double-buffered audio elements.
-          A and B alternate: one plays while the other preloads the next track.
-          This prevents the fetch/buffer gap that caused mobile browsers to
-          kill the audio session when the screen was off.
+          Single <audio> element playing a concatenated MP3 blob.
+          The browser treats it as one continuous file — no gaps between
+          ayats, no JavaScript transitions, and the OS audio session
+          stays alive with the screen off.
         */}
         <audio
-          ref={audioRefA}
+          ref={audioRef}
           preload="auto"
           playsInline
-          onEnded={onEndedA}
-          onTimeUpdate={onTimeUpdateA}
-        />
-        <audio
-          ref={audioRefB}
-          preload="auto"
-          playsInline
-          onEnded={onEndedB}
-          onTimeUpdate={onTimeUpdateB}
+          onTimeUpdate={onTimeUpdate}
+          onEnded={onEnded}
+          onPause={onPause}
+          onStalled={onStalled}
         />
         <AyatList
           tracksToPlay={tracksToPlay}
@@ -512,15 +693,21 @@ const QuranApp = () => {
         </div>
       </div>
       <div className="inline-flex shadow-sm" role="group">
-        {!isPlaying && (
+        {isLoading ? (
+          <button
+            className="btn bg-primary font-bold text-xl text-white w-full p-3 opacity-70"
+            disabled
+          >
+            Loading…
+          </button>
+        ) : !isPlaying ? (
           <button
             className="btn bg-primary font-bold text-xl text-white w-full p-3"
-            onClick={() => handlePlay({ activeTrackUrl: activeTrackUrl })}
+            onClick={handlePlay}
           >
             Play
           </button>
-        )}
-        {isPlaying && (
+        ) : (
           <button
             className="btn bg-primary font-bold text-xl text-white w-full p-3"
             onClick={handlePause}

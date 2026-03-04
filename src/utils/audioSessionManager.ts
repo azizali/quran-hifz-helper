@@ -1,11 +1,13 @@
 /**
- * Audio session management — ensures the browser/OS audio session stays alive
- * even during the tiny gap between playlist tracks.
+ * Audio session management — ensures the browser/OS audio session stays alive.
  *
  * A near-silent oscillator (gain ≈ 0.001, inaudible) runs continuously while
  * playback is active.  This keeps the AudioContext — and therefore the OS-level
  * audio session — marked as "producing audio", so mobile browsers won't suspend
- * the page when one <audio> element ends and before the next one starts.
+ * the page.
+ *
+ * The manager also handles AudioContext state changes (e.g. the OS suspending
+ * it when the page goes to background) and automatically resumes it.
  */
 export class AudioSessionManager {
   private static instance: AudioSessionManager;
@@ -13,6 +15,7 @@ export class AudioSessionManager {
   private oscillator: OscillatorNode | null = null;
   private gainNode: GainNode | null = null;
   private keepaliveRunning = false;
+  private stateChangeHandler: (() => void) | null = null;
 
   static getInstance(): AudioSessionManager {
     if (!AudioSessionManager.instance) {
@@ -28,6 +31,18 @@ export class AudioSessionManager {
 
         if (!this.audioContext) {
           this.audioContext = new Ctx();
+
+          // Auto-resume AudioContext when the OS unsuspends it
+          this.stateChangeHandler = () => {
+            const state = this.audioContext?.state as string | undefined;
+            if (state === "interrupted" || state === "suspended") {
+              this.audioContext!.resume().catch(() => {});
+            }
+          };
+          this.audioContext.addEventListener(
+            "statechange",
+            this.stateChangeHandler
+          );
         }
 
         if (this.audioContext.state === "suspended") {
@@ -47,8 +62,6 @@ export class AudioSessionManager {
     if (this.keepaliveRunning || !this.audioContext) return;
 
     try {
-      // Gain set extremely low — completely inaudible but enough to keep
-      // the AudioContext (and therefore the OS audio session) active.
       this.gainNode = this.audioContext.createGain();
       this.gainNode.gain.value = 0.001; // −60 dB, effectively silent
 
@@ -86,8 +99,13 @@ export class AudioSessionManager {
   }
 
   async ensureAudioContext(): Promise<void> {
-    if (this.audioContext && this.audioContext.state === "suspended") {
-      await this.audioContext.resume();
+    if (this.audioContext) {
+      if (
+        this.audioContext.state === "suspended" ||
+        (this.audioContext.state as string) === "interrupted"
+      ) {
+        await this.audioContext.resume();
+      }
     }
   }
 }
