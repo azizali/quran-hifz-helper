@@ -97,34 +97,39 @@ const useQuranPlayer = () => {
       const blobUrl = blobUrlCacheRef.current.get(trackUrl);
       const srcToUse = blobUrl || trackUrl;
 
-      // Set source if different
-      if (audioRef.src !== srcToUse) {
-        audioRef.src = srcToUse;
-      }
-      
-      // Call play() synchronously to maintain event chain for background playback
-      const playPromise = audioRef.play();
-      
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            setActiveTrackUrl(trackUrl);
-            
-            const activeElement = document.getElementById(trackUrl);
-            if (activeElement) {
-              const scrollTarget = activeElement.previousElementSibling || activeElement;
-              scrollTarget.scrollIntoView({ block: "nearest" });
-            }
-          })
-          .catch((e) => {
-            console.error("Error playing audio:", e);
-            intentToPlayRef.current = false;
-            setIsPlaying(false);
-            if ("mediaSession" in navigator) {
-              navigator.mediaSession.playbackState = "none";
-            }
-          });
+      // Set new source — this resets the element
+      audioRef.src = srcToUse;
+
+      // Wait for the browser to signal it has enough data, then play.
+      // This avoids the AbortError from calling play() before load completes.
+      const playWhenReady = () => {
+        const p = audioRef.play();
+        if (p !== undefined) {
+          p.then(() => {
+              setIsPlaying(true);
+              setActiveTrackUrl(trackUrl);
+
+              const activeElement = document.getElementById(trackUrl);
+              if (activeElement) {
+                const scrollTarget = activeElement.previousElementSibling || activeElement;
+                scrollTarget.scrollIntoView({ block: "nearest" });
+              }
+            })
+            .catch((e) => {
+              console.error("Error playing audio:", e);
+              intentToPlayRef.current = false;
+              setIsPlaying(false);
+              if ("mediaSession" in navigator) {
+                navigator.mediaSession.playbackState = "none";
+              }
+            });
+        }
+      };
+
+      if (audioRef.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        playWhenReady();
+      } else {
+        audioRef.addEventListener("canplay", playWhenReady, { once: true });
       }
     } catch (error) {
       console.error("Error in playAyat:", error);
