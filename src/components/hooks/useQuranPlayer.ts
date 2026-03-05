@@ -8,13 +8,11 @@ import {
 import { useLocalStorage } from "usehooks-ts";
 import { appName, surahs } from "../../_main/config";
 import { type TrackUrl } from "../../_main/types";
-import AudioSessionManager from "../../utils/audioSessionManager";
 import { defaultQariKey, type QariKey } from "../controls/qari";
 import { getActiveAyatNumber, getTracksToPlay } from "../utils";
 
 const useQuranPlayer = () => {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const audioSessionManager = useRef<AudioSessionManager>(AudioSessionManager.getInstance());
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeTrackUrl, setActiveTrackUrl] = useState<TrackUrl>("" as TrackUrl);
   const [qariKey, setQariKey] = useLocalStorage<QariKey>("qariKey", defaultQariKey);
@@ -83,6 +81,17 @@ const useQuranPlayer = () => {
     activeTrackUrlRef.current = trackUrl;
 
     try {
+      // Set MediaSession metadata BEFORE play() — the OS checks this to decide
+      // whether to allow background audio. Must be set before play() is called.
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: title,
+          album: surah.name,
+          artist: appName,
+        });
+        navigator.mediaSession.playbackState = "playing";
+      }
+
       // Use blob URL if available (instant, in-memory, works while screen locked)
       // Fall back to remote URL if not yet buffered
       const blobUrl = blobUrlCacheRef.current.get(trackUrl);
@@ -102,15 +111,6 @@ const useQuranPlayer = () => {
             setIsPlaying(true);
             setActiveTrackUrl(trackUrl);
             
-            if ("mediaSession" in navigator) {
-              navigator.mediaSession.playbackState = "playing";
-              navigator.mediaSession.metadata = new MediaMetadata({
-                title: title,
-                album: surah.name,
-                artist: appName,
-              });
-            }
-            
             const activeElement = document.getElementById(trackUrl);
             if (activeElement) {
               const scrollTarget = activeElement.previousElementSibling || activeElement;
@@ -121,6 +121,9 @@ const useQuranPlayer = () => {
             console.error("Error playing audio:", e);
             intentToPlayRef.current = false;
             setIsPlaying(false);
+            if ("mediaSession" in navigator) {
+              navigator.mediaSession.playbackState = "none";
+            }
           });
       }
     } catch (error) {
@@ -293,21 +296,13 @@ const useQuranPlayer = () => {
     };
   }, []); // No deps — uses refs only
 
-  // Initialize audio session manager on mount
+  // Ensure audio element has proper attributes for background playback
   useEffect(() => {
-    audioSessionManager.current.initialize();
-    audioSessionManager.current.setupBackgroundAudioHandlers();
-    
-    // Ensure audio element has proper attributes for background playback
     const audioRef = audioPlayerRef.current;
     if (audioRef) {
       audioRef.setAttribute("playsinline", "true");
       audioRef.setAttribute("webkit-playsinline", "true");
     }
-    
-    return () => {
-      console.log("Component unmounting - audio session cleaned up");
-    };
   }, []);
 
   // Initialize media session action handlers
