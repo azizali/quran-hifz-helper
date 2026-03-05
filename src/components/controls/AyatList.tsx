@@ -28,16 +28,17 @@ export const AyatList: React.FC<AyatListProps> = ({
   return (
     <div className="overflow-y-scroll border scroll-smooth">
       {tracksToPlay.map(({ ayatNumber, trackUrl }) => {
+        if (trackUrl === REPEAT_SOUND_TRACK) return null;
+        
         const isCachedTrack = cachedAudio[trackUrl];
-        const isActiveTrack =
-          activeTrackUrl === trackUrl && trackUrl !== REPEAT_SOUND_TRACK;
-        const isInactiveTrack =
-          activeTrackUrl !== trackUrl && trackUrl !== REPEAT_SOUND_TRACK;
+        const isActiveTrack = activeTrackUrl === trackUrl;
+        const isInactiveTrack = activeTrackUrl !== trackUrl;
+        
         return (
           <div
             key={trackUrl}
             id={trackUrl}
-            className="block p-2 border-y border-t-0 w-full even:bg-slate-100 last:hidden"
+            className="block p-2 border-y border-t-0 w-full even:bg-slate-100"
           >
             <div className="flex">
               {isActiveTrack && (
