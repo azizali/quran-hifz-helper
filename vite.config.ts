@@ -47,12 +47,15 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/everyayah.com\/.*$/,
-            handler: 'NetworkFirst',
+            handler: 'CacheFirst',
             options: {
               cacheName: 'audio-cache',
-              networkTimeoutSeconds: 10,
+              rangeRequests: true,
+              cacheableResponse: {
+                statuses: [0, 200, 206]
+              },
               expiration: {
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 Year
               },
             },
           },
