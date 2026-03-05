@@ -29,6 +29,11 @@ const useQuranPlayer = () => {
   const shouldRepeatRef = useRef(shouldRepeat);
   const playAyatRef = useRef<(trackUrl: TrackUrl) => void>(() => {});
 
+  // In-memory blob URL cache: remote URL → blob: URL
+  // This allows instant track transitions even when the screen is locked,
+  // because blob URLs are in-memory and don't need network/SW activity.
+  const blobUrlCacheRef = useRef<Map<string, string>>(new Map());
+
   const surah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
   const tracksToPlay = useMemo(() => {
@@ -41,28 +46,27 @@ const useQuranPlayer = () => {
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
 
-  // Preload tracks for offline playback
+  // Preload tracks: fetch audio data and store as in-memory blob URLs
+  // This is the key to background playback — blob URLs load instantly
+  // with no network/service-worker involvement during track transitions.
   const preloadTracks = useCallback(async (tracks: typeof tracksToPlay) => {
-    if (!('caches' in window)) return;
-    
-    try {
-      const cache = await caches.open('audio-cache');
-      const preloadPromises = tracks.map(async ({ trackUrl }) => {
-        try {
-          const response = await cache.match(trackUrl);
-          if (!response) {
-            // Not in cache, fetch and cache it
-            await cache.add(trackUrl);
-            console.log(`Preloaded: ${trackUrl}`);
-          }
-        } catch (error) {
-          console.warn(`Failed to preload ${trackUrl}:`, error);
-        }
-      });
-      await Promise.allSettled(preloadPromises);
-    } catch (error) {
-      console.error('Error preloading tracks:', error);
-    }
+    const blobCache = blobUrlCacheRef.current;
+
+    const preloadPromises = tracks.map(async ({ trackUrl }) => {
+      if (blobCache.has(trackUrl)) return; // Already buffered
+
+      try {
+        const response = await fetch(trackUrl);
+        if (!response.ok) return;
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        blobCache.set(trackUrl, blobUrl);
+        console.log(`Buffered: ${trackUrl}`);
+      } catch (error) {
+        console.warn(`Failed to buffer ${trackUrl}:`, error);
+      }
+    });
+    await Promise.allSettled(preloadPromises);
   }, []);
 
   const title = useMemo(
@@ -79,9 +83,14 @@ const useQuranPlayer = () => {
     activeTrackUrlRef.current = trackUrl;
 
     try {
+      // Use blob URL if available (instant, in-memory, works while screen locked)
+      // Fall back to remote URL if not yet buffered
+      const blobUrl = blobUrlCacheRef.current.get(trackUrl);
+      const srcToUse = blobUrl || trackUrl;
+
       // Set source if different
-      if (!audioRef.src.includes(trackUrl)) {
-        audioRef.src = trackUrl;
+      if (audioRef.src !== srcToUse) {
+        audioRef.src = srcToUse;
       }
       
       // Call play() synchronously to maintain event chain for background playback
@@ -234,8 +243,19 @@ const useQuranPlayer = () => {
     if (!tracksToPlay.length) return;
     handleStopAll();
     setActiveTrackUrl(tracksToPlay[0].trackUrl);
-    
-    // Preload tracks for smooth offline playback
+    activeTrackUrlRef.current = tracksToPlay[0].trackUrl;
+
+    // Revoke old blob URLs that aren't in the new track list to free memory
+    const newTrackUrls = new Set(tracksToPlay.map(t => t.trackUrl));
+    const blobCache = blobUrlCacheRef.current;
+    for (const [trackUrl, blobUrl] of blobCache.entries()) {
+      if (!newTrackUrls.has(trackUrl as TrackUrl)) {
+        URL.revokeObjectURL(blobUrl);
+        blobCache.delete(trackUrl);
+      }
+    }
+
+    // Pre-buffer tracks as blob URLs for instant background transitions
     preloadTracks(tracksToPlay);
   }, [tracksToPlay, handleStopAll, preloadTracks]);
 
