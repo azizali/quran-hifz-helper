@@ -69,6 +69,8 @@ const QuranApp = () => {
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         playsInline
+        webkit-playsinline="true"
+        preload="auto"
         crossOrigin="anonymous"
       />
 

@@ -59,68 +59,61 @@ const useQuranPlayer = () => {
     [surah.name, activeAyatNumber, surah.numberOfAyats]
   );
 
-  const initializeAudioSession = async () => {
-    await audioSessionManager.current.initialize();
-  };
+  const playAyat = useCallback((trackUrl: TrackUrl) => {
+    // CRITICAL: This function must remain synchronous for mobile background playback
+    // Any async operations before play() will break the user-gesture chain
+    
+    const audioRef = audioPlayerRef.current;
+    if (!audioRef) return;
 
-  const playAyat = useCallback(async (trackUrl: TrackUrl) => {
     try {
-      // Don't await initializeAudioSession - relying on synchronous audio play 
-      // is critical for mobile background playback.
-      initializeAudioSession();
-      const audioRef = audioPlayerRef.current;
-      if (!audioRef) return;
-
-      // Only load new src if track changes
+      // Synchronously change source and play - NO async calls before this
       if (!audioRef.src.includes(trackUrl)) {
         audioRef.src = trackUrl;
         audioRef.setAttribute("data-trackurl", trackUrl);
-        audioRef.load();
       }
-
-      // Do NOT await canplaythrough as this breaks the synchronous user-interaction
-      // chain required by mobile browsers for background audio playback.
-      // Calling play() will automatically wait for sufficient data.
-      audioRef.setAttribute("playsinline", "true");
-      audioRef.setAttribute("webkit-playsinline", "true");
       
+      // Call play() synchronously - this maintains the event chain from onEnded
       const playPromise = audioRef.play();
+      
+      // Handle play promise errors asynchronously (after play is called)
       if (playPromise !== undefined) {
-        playPromise.catch((e) => {
-          console.error("Error playing audio background:", e);
-          setIsPlaying(false);
-          // Optional retry logic could be added here
-        });
-      }
-      setIsPlaying(true);
-
-      // We handle scrolling in a separate effect or based on the active row now,
-      // since there is only one global audio element.
-      const activeElement = document.getElementById(trackUrl);
-      if (activeElement) {
-        if (activeElement.previousElementSibling) {
-          activeElement.previousElementSibling.scrollIntoView();
-        } else {
-          activeElement.scrollIntoView();
-        }
-      }
-
-      if ("mediaSession" in navigator) {
-        navigator.mediaSession.playbackState = "playing";
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: title,
-          album: surah.name,
-          artist: appName,
-        });
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            
+            // Update MediaSession metadata after successful play
+            if ("mediaSession" in navigator) {
+              navigator.mediaSession.playbackState = "playing";
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: title,
+                album: surah.name,
+                artist: appName,
+              });
+            }
+            
+            // Scroll to active element
+            const activeElement = document.getElementById(trackUrl);
+            if (activeElement) {
+              if (activeElement.previousElementSibling) {
+                activeElement.previousElementSibling.scrollIntoView();
+              } else {
+                activeElement.scrollIntoView();
+              }
+            }
+          })
+          .catch((e) => {
+            console.error("Error playing audio:", e);
+            setIsPlaying(false);
+          });
       }
     } catch (error) {
-      console.error("Error playing audio:", error);
+      console.error("Error in playAyat:", error);
       setIsPlaying(false);
-      setTimeout(() => { playAyat(trackUrl); }, 1000);
     }
   }, [surah.name, title]);
 
-  const pauseAyat = useCallback(async () => {
+  const pauseAyat = useCallback(() => {
     const audioRef = audioPlayerRef.current;
     if (audioRef) audioRef.pause();
     setIsPlaying(false);
@@ -129,7 +122,7 @@ const useQuranPlayer = () => {
     }
   }, []);
 
-  const handleStopAll = useCallback(async () => {
+  const handleStopAll = useCallback(() => {
     setIsPlaying(false);
     const elm = audioPlayerRef.current;
     if (elm) {
@@ -142,8 +135,8 @@ const useQuranPlayer = () => {
   }, []);
 
   const handlePlay = useCallback(
-    async ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
-      try { await playAyat(activeTrackUrl); } catch (e) { console.log(e); }
+    ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
+      playAyat(activeTrackUrl);
     },
     [playAyat]
   );
@@ -236,6 +229,14 @@ const useQuranPlayer = () => {
   useEffect(() => {
     audioSessionManager.current.initialize();
     audioSessionManager.current.setupBackgroundAudioHandlers();
+    
+    // Ensure audio element has proper attributes for background playback
+    const audioRef = audioPlayerRef.current;
+    if (audioRef) {
+      audioRef.setAttribute("playsinline", "true");
+      audioRef.setAttribute("webkit-playsinline", "true");
+    }
+    
     return () => {
       console.log("Component unmounting - audio session cleaned up");
     };
