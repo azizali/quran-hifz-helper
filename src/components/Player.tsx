@@ -58,7 +58,7 @@ const QuranApp = () => {
         />
       </div>
       
-      {/* Buffer progress — all tracks must be preloaded for reliable background playback */}
+      {/* Buffer progress — all tracks are concatenated into a single audio stream */}
       {preloadProgress.total > 0 && preloadProgress.loaded < preloadProgress.total && (
         <div className="px-4 pb-1">
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -68,7 +68,7 @@ const QuranApp = () => {
                 style={{ width: `${(preloadProgress.loaded / preloadProgress.total) * 100}%` }}
               />
             </div>
-            <span>Buffering {preloadProgress.loaded}/{preloadProgress.total}</span>
+            <span>Loading {preloadProgress.loaded}/{preloadProgress.total}</span>
           </div>
         </div>
       )}
