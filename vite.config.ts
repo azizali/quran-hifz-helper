@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon192_rounded.png', 'icon512_rounded.png'],
+      includeAssets: ['favicon.svg', 'icon192_rounded.png', 'icon512_rounded.png', 'click-sound.mp3'],
       manifest: {
         name: 'Hifz Helper',
         short_name: 'Hifz Helper',

@@ -41,13 +41,16 @@ const useQuranPlayer = () => {
 
   const playAyat = useCallback(async (trackUrl: TrackUrl) => {
     try {
-      await initializeAudioSession();
+      // Don't await initializeAudioSession - relying on synchronous audio play 
+      // is critical for mobile background playback.
+      initializeAudioSession();
       const audioRef = audioPlayerRef.current;
       if (!audioRef) return;
 
       // Only load new src if track changes
       if (!audioRef.src.includes(trackUrl)) {
         audioRef.src = trackUrl;
+        audioRef.setAttribute("data-trackurl", trackUrl);
         audioRef.load();
       }
 
@@ -59,7 +62,11 @@ const useQuranPlayer = () => {
       
       const playPromise = audioRef.play();
       if (playPromise !== undefined) {
-        await playPromise;
+        playPromise.catch((e) => {
+          console.error("Error playing audio background:", e);
+          setIsPlaying(false);
+          // Optional retry logic could be added here
+        });
       }
       setIsPlaying(true);
 
@@ -89,14 +96,14 @@ const useQuranPlayer = () => {
     }
   }, [surah.name, title]);
 
-  const pauseAyat = async () => {
+  const pauseAyat = useCallback(async () => {
     const audioRef = audioPlayerRef.current;
     if (audioRef) audioRef.pause();
     setIsPlaying(false);
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = "paused";
     }
-  };
+  }, []);
 
   const handleStopAll = useCallback(async () => {
     setIsPlaying(false);
@@ -117,7 +124,7 @@ const useQuranPlayer = () => {
     [playAyat]
   );
 
-  const handlePause = () => pauseAyat();
+  const handlePause = useCallback(() => pauseAyat(), [pauseAyat]);
 
   const handleReset = () => {
     handleStopAll();
@@ -126,27 +133,27 @@ const useQuranPlayer = () => {
     handlePlay({ activeTrackUrl: firstTrackUrl });
   };
 
-  const handleEnded = async () => {
+  const handleEnded = useCallback(() => {
     const currentTrackUrl = audioPlayerRef.current?.getAttribute("data-trackurl") || activeTrackUrl;
     const trackIndex = tracksToPlay.findIndex(({ trackUrl }) => trackUrl === currentTrackUrl);
     const nextTrackUrl = tracksToPlay[trackIndex + 1]?.trackUrl as TrackUrl;
 
     if (nextTrackUrl) {
       setActiveTrackUrl(nextTrackUrl);
-      await playAyat(nextTrackUrl);
+      playAyat(nextTrackUrl);
       return;
     }
     if (shouldRepeat) {
       const firstTrackUrl = tracksToPlay[0].trackUrl;
       setActiveTrackUrl(firstTrackUrl);
-      await playAyat(firstTrackUrl);
+      playAyat(firstTrackUrl);
       return;
     }
     setIsPlaying(false);
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = "none";
     }
-  };
+  }, [activeTrackUrl, tracksToPlay, playAyat, shouldRepeat]);
 
   const handleAyatClick = useCallback(
     (trackUrl: TrackUrl) => {
@@ -206,6 +213,36 @@ const useQuranPlayer = () => {
       console.log("Component unmounting - audio session cleaned up");
     };
   }, []);
+
+  // Initialize media session action handlers
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.setActionHandler("play", () => {
+        if (activeTrackUrl) {
+          playAyat(activeTrackUrl);
+        }
+      });
+      navigator.mediaSession.setActionHandler("pause", handlePause);
+      navigator.mediaSession.setActionHandler("nexttrack", handleEnded);
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        const trackIndex = tracksToPlay.findIndex(({ trackUrl }) => trackUrl === activeTrackUrl);
+        if (trackIndex > 0) {
+          const prevTrackUrl = tracksToPlay[trackIndex - 1]?.trackUrl;
+          setActiveTrackUrl(prevTrackUrl);
+          playAyat(prevTrackUrl);
+        }
+      });
+    }
+    
+    return () => {
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.setActionHandler("play", null);
+        navigator.mediaSession.setActionHandler("pause", null);
+        navigator.mediaSession.setActionHandler("nexttrack", null);
+        navigator.mediaSession.setActionHandler("previoustrack", null);
+      }
+    };
+  }, [activeTrackUrl, tracksToPlay, playAyat, handleEnded]);
 
   return {
     // State
