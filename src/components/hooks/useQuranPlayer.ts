@@ -22,11 +22,22 @@ const useQuranPlayer = () => {
   const [ayatRange, setAyatRange] = useLocalStorage<[number, number]>("ayatRange", [1, 1]);
   const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>("shouldRepeat", true);
 
+  // Refs to always have fresh values in event listeners (no stale closures)
+  const intentToPlayRef = useRef(false);
+  const activeTrackUrlRef = useRef<TrackUrl>("" as TrackUrl);
+  const tracksToPlayRef = useRef<ReturnType<typeof getTracksToPlay>>([]);
+  const shouldRepeatRef = useRef(shouldRepeat);
+  const playAyatRef = useRef<(trackUrl: TrackUrl) => void>(() => {});
+
   const surah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
   const tracksToPlay = useMemo(() => {
     return getTracksToPlay(ayatRange, shouldRepeat, surahNumber, qariKey);
   }, [ayatRange, shouldRepeat, surahNumber, qariKey]);
+
+  // Keep refs in sync
+  useEffect(() => { tracksToPlayRef.current = tracksToPlay; }, [tracksToPlay]);
+  useEffect(() => { shouldRepeatRef.current = shouldRepeat; }, [shouldRepeat]);
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
 
@@ -60,29 +71,28 @@ const useQuranPlayer = () => {
   );
 
   const playAyat = useCallback((trackUrl: TrackUrl) => {
-    // CRITICAL: This function must remain synchronous for mobile background playback
-    // Any async operations before play() will break the user-gesture chain
-    
     const audioRef = audioPlayerRef.current;
     if (!audioRef) return;
 
+    // Mark our intent to play — prevents onPause from killing playback during src swap
+    intentToPlayRef.current = true;
+    activeTrackUrlRef.current = trackUrl;
+
     try {
-      // Synchronously change source and play - NO async calls before this
+      // Set source if different
       if (!audioRef.src.includes(trackUrl)) {
         audioRef.src = trackUrl;
-        audioRef.setAttribute("data-trackurl", trackUrl);
       }
       
-      // Call play() synchronously - this maintains the event chain from onEnded
+      // Call play() synchronously to maintain event chain for background playback
       const playPromise = audioRef.play();
       
-      // Handle play promise errors asynchronously (after play is called)
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
             setIsPlaying(true);
+            setActiveTrackUrl(trackUrl);
             
-            // Update MediaSession metadata after successful play
             if ("mediaSession" in navigator) {
               navigator.mediaSession.playbackState = "playing";
               navigator.mediaSession.metadata = new MediaMetadata({
@@ -92,28 +102,30 @@ const useQuranPlayer = () => {
               });
             }
             
-            // Scroll to active element
             const activeElement = document.getElementById(trackUrl);
             if (activeElement) {
-              if (activeElement.previousElementSibling) {
-                activeElement.previousElementSibling.scrollIntoView();
-              } else {
-                activeElement.scrollIntoView();
-              }
+              const scrollTarget = activeElement.previousElementSibling || activeElement;
+              scrollTarget.scrollIntoView({ block: "nearest" });
             }
           })
           .catch((e) => {
             console.error("Error playing audio:", e);
+            intentToPlayRef.current = false;
             setIsPlaying(false);
           });
       }
     } catch (error) {
       console.error("Error in playAyat:", error);
+      intentToPlayRef.current = false;
       setIsPlaying(false);
     }
   }, [surah.name, title]);
 
+  // Keep playAyat ref current for native event listeners
+  useEffect(() => { playAyatRef.current = playAyat; }, [playAyat]);
+
   const pauseAyat = useCallback(() => {
+    intentToPlayRef.current = false;
     const audioRef = audioPlayerRef.current;
     if (audioRef) audioRef.pause();
     setIsPlaying(false);
@@ -123,6 +135,7 @@ const useQuranPlayer = () => {
   }, []);
 
   const handleStopAll = useCallback(() => {
+    intentToPlayRef.current = false;
     setIsPlaying(false);
     const elm = audioPlayerRef.current;
     if (elm) {
@@ -147,39 +160,74 @@ const useQuranPlayer = () => {
     handleStopAll();
     const firstTrackUrl: TrackUrl = tracksToPlay[0].trackUrl;
     setActiveTrackUrl(firstTrackUrl);
-    handlePlay({ activeTrackUrl: firstTrackUrl });
+    activeTrackUrlRef.current = firstTrackUrl;
+    playAyat(firstTrackUrl);
   };
-
-  const handleEnded = useCallback(() => {
-    const currentTrackUrl = audioPlayerRef.current?.getAttribute("data-trackurl") || activeTrackUrl;
-    const trackIndex = tracksToPlay.findIndex(({ trackUrl }) => trackUrl === currentTrackUrl);
-    const nextTrackUrl = tracksToPlay[trackIndex + 1]?.trackUrl as TrackUrl;
-
-    if (nextTrackUrl) {
-      setActiveTrackUrl(nextTrackUrl);
-      playAyat(nextTrackUrl);
-      return;
-    }
-    if (shouldRepeat) {
-      const firstTrackUrl = tracksToPlay[0].trackUrl;
-      setActiveTrackUrl(firstTrackUrl);
-      playAyat(firstTrackUrl);
-      return;
-    }
-    setIsPlaying(false);
-    if ("mediaSession" in navigator) {
-      navigator.mediaSession.playbackState = "none";
-    }
-  }, [activeTrackUrl, tracksToPlay, playAyat, shouldRepeat]);
 
   const handleAyatClick = useCallback(
     (trackUrl: TrackUrl) => {
       handleStopAll();
       setActiveTrackUrl(trackUrl);
-      handlePlay({ activeTrackUrl: trackUrl });
+      activeTrackUrlRef.current = trackUrl;
+      playAyat(trackUrl);
     },
-    [handlePlay, handleStopAll]
+    [playAyat, handleStopAll]
   );
+
+  // Attach native DOM event listeners for reliable background operation
+  // These use refs so they always read fresh state — no stale closures
+  useEffect(() => {
+    const audioEl = audioPlayerRef.current;
+    if (!audioEl) return;
+
+    const onEnded = () => {
+      const tracks = tracksToPlayRef.current;
+      const currentUrl = activeTrackUrlRef.current;
+      const trackIndex = tracks.findIndex(({ trackUrl }) => trackUrl === currentUrl);
+      const nextTrackUrl = tracks[trackIndex + 1]?.trackUrl as TrackUrl;
+
+      if (nextTrackUrl) {
+        setActiveTrackUrl(nextTrackUrl);
+        activeTrackUrlRef.current = nextTrackUrl;
+        playAyatRef.current(nextTrackUrl);
+        return;
+      }
+      if (shouldRepeatRef.current) {
+        const firstTrackUrl = tracks[0].trackUrl;
+        setActiveTrackUrl(firstTrackUrl);
+        activeTrackUrlRef.current = firstTrackUrl;
+        playAyatRef.current(firstTrackUrl);
+        return;
+      }
+      intentToPlayRef.current = false;
+      setIsPlaying(false);
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.playbackState = "none";
+      }
+    };
+
+    // Only set isPlaying(false) on pause if we didn't *intend* to keep playing
+    // (i.e., user actually paused, vs. browser pausing during src swap)
+    const onPause = () => {
+      if (!intentToPlayRef.current) {
+        setIsPlaying(false);
+      }
+    };
+
+    const onPlay = () => {
+      setIsPlaying(true);
+    };
+
+    audioEl.addEventListener("ended", onEnded);
+    audioEl.addEventListener("pause", onPause);
+    audioEl.addEventListener("play", onPlay);
+
+    return () => {
+      audioEl.removeEventListener("ended", onEnded);
+      audioEl.removeEventListener("pause", onPause);
+      audioEl.removeEventListener("play", onPlay);
+    };
+  }, []);  // Empty deps — uses only refs
 
   // Reset tracks when tracksToPlay changes and preload them
   useEffect(() => {
@@ -199,7 +247,7 @@ const useQuranPlayer = () => {
   // Handle page visibility changes to prevent audio stopping
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isPlaying) {
+      if (!document.hidden && intentToPlayRef.current) {
         const audioRef = audioPlayerRef.current;
         if (audioRef && audioRef.paused) {
           audioRef.play().catch(console.error);
@@ -208,7 +256,7 @@ const useQuranPlayer = () => {
     };
 
     const handleFocus = () => {
-      if (isPlaying) {
+      if (intentToPlayRef.current) {
         const audioRef = audioPlayerRef.current;
         if (audioRef && audioRef.paused) {
           audioRef.play().catch(console.error);
@@ -223,7 +271,7 @@ const useQuranPlayer = () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [isPlaying, activeTrackUrl]);
+  }, []); // No deps — uses refs only
 
   // Initialize audio session manager on mount
   useEffect(() => {
@@ -244,38 +292,52 @@ const useQuranPlayer = () => {
 
   // Initialize media session action handlers
   useEffect(() => {
-    if ("mediaSession" in navigator) {
-      navigator.mediaSession.setActionHandler("play", () => {
-        if (activeTrackUrl) {
-          playAyat(activeTrackUrl);
-        }
-      });
-      navigator.mediaSession.setActionHandler("pause", handlePause);
-      navigator.mediaSession.setActionHandler("nexttrack", handleEnded);
-      navigator.mediaSession.setActionHandler("previoustrack", () => {
-        const trackIndex = tracksToPlay.findIndex(({ trackUrl }) => trackUrl === activeTrackUrl);
-        if (trackIndex > 0) {
-          const prevTrackUrl = tracksToPlay[trackIndex - 1]?.trackUrl;
-          setActiveTrackUrl(prevTrackUrl);
-          playAyat(prevTrackUrl);
-        }
-      });
-    }
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.setActionHandler("play", () => {
+      const url = activeTrackUrlRef.current;
+      if (url) playAyatRef.current(url);
+    });
+    navigator.mediaSession.setActionHandler("pause", () => {
+      intentToPlayRef.current = false;
+      audioPlayerRef.current?.pause();
+      setIsPlaying(false);
+      navigator.mediaSession.playbackState = "paused";
+    });
+    navigator.mediaSession.setActionHandler("nexttrack", () => {
+      const tracks = tracksToPlayRef.current;
+      const currentUrl = activeTrackUrlRef.current;
+      const trackIndex = tracks.findIndex(({ trackUrl }) => trackUrl === currentUrl);
+      const nextUrl = tracks[trackIndex + 1]?.trackUrl;
+      if (nextUrl) {
+        setActiveTrackUrl(nextUrl);
+        activeTrackUrlRef.current = nextUrl;
+        playAyatRef.current(nextUrl);
+      }
+    });
+    navigator.mediaSession.setActionHandler("previoustrack", () => {
+      const tracks = tracksToPlayRef.current;
+      const currentUrl = activeTrackUrlRef.current;
+      const trackIndex = tracks.findIndex(({ trackUrl }) => trackUrl === currentUrl);
+      if (trackIndex > 0) {
+        const prevUrl = tracks[trackIndex - 1]?.trackUrl;
+        setActiveTrackUrl(prevUrl);
+        activeTrackUrlRef.current = prevUrl;
+        playAyatRef.current(prevUrl);
+      }
+    });
     
     return () => {
-      if ("mediaSession" in navigator) {
-        navigator.mediaSession.setActionHandler("play", null);
-        navigator.mediaSession.setActionHandler("pause", null);
-        navigator.mediaSession.setActionHandler("nexttrack", null);
-        navigator.mediaSession.setActionHandler("previoustrack", null);
-      }
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("nexttrack", null);
+      navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [activeTrackUrl, tracksToPlay, playAyat, handleEnded]);
+  }, []);  // Empty deps — uses only refs
 
   return {
     // State
     isPlaying,
-    setIsPlaying,
     activeTrackUrl,
     activeAyatNumber,
     qariKey,
@@ -293,7 +355,6 @@ const useQuranPlayer = () => {
     handlePlay,
     handlePause,
     handleReset,
-    handleEnded,
     handleAyatClick,
   };
 };

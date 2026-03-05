@@ -9,7 +9,6 @@ import useQuranPlayer from "./hooks/useQuranPlayer";
 const QuranApp = () => {
   const {
     isPlaying,
-    setIsPlaying,
     activeTrackUrl,
     activeAyatNumber,
     qariKey,
@@ -26,7 +25,6 @@ const QuranApp = () => {
     handlePlay,
     handlePause,
     handleReset,
-    handleEnded,
     handleAyatClick,
   } = useQuranPlayer();
 
@@ -59,19 +57,14 @@ const QuranApp = () => {
         />
       </div>
       
-      {/* Global Audio Element for proper seamless background playback */}
+      {/* Single persistent audio element — event listeners attached natively in hook */}
       <audio
         ref={audioPlayerRef}
         className="w-full px-4 pb-2"
         controls
-        data-trackurl={activeTrackUrl}
-        onEnded={handleEnded}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
         playsInline
         webkit-playsinline="true"
         preload="auto"
-        crossOrigin="anonymous"
       />
 
       <PlayerActionBar
