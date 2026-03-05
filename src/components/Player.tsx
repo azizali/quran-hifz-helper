@@ -22,6 +22,7 @@ const QuranApp = () => {
     setShouldRepeat,
     tracksToPlay,
     audioPlayerRef,
+    preloadProgress,
     handlePlay,
     handlePause,
     handleReset,
@@ -57,6 +58,21 @@ const QuranApp = () => {
         />
       </div>
       
+      {/* Buffer progress — all tracks must be preloaded for reliable background playback */}
+      {preloadProgress.total > 0 && preloadProgress.loaded < preloadProgress.total && (
+        <div className="px-4 pb-1">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+              <div
+                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${(preloadProgress.loaded / preloadProgress.total) * 100}%` }}
+              />
+            </div>
+            <span>Buffering {preloadProgress.loaded}/{preloadProgress.total}</span>
+          </div>
+        </div>
+      )}
+
       {/* Single persistent audio element — event listeners attached natively in hook */}
       <audio
         ref={audioPlayerRef}

@@ -44,11 +44,17 @@ const useQuranPlayer = () => {
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
 
+  // Track preload progress: how many tracks have been buffered as blob URLs
+  const [preloadProgress, setPreloadProgress] = useState({ loaded: 0, total: 0 });
+
   // Preload tracks: fetch audio data and store as in-memory blob URLs
   // This is the key to background playback — blob URLs load instantly
   // with no network/service-worker involvement during track transitions.
   const preloadTracks = useCallback(async (tracks: typeof tracksToPlay) => {
     const blobCache = blobUrlCacheRef.current;
+    const total = tracks.length;
+    let loaded = tracks.filter(({ trackUrl }) => blobCache.has(trackUrl)).length;
+    setPreloadProgress({ loaded, total });
 
     const preloadPromises = tracks.map(async ({ trackUrl }) => {
       if (blobCache.has(trackUrl)) return; // Already buffered
@@ -59,7 +65,9 @@ const useQuranPlayer = () => {
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         blobCache.set(trackUrl, blobUrl);
-        console.log(`Buffered: ${trackUrl}`);
+        loaded++;
+        setPreloadProgress({ loaded, total });
+        console.log(`Buffered [${loaded}/${total}]: ${trackUrl}`);
       } catch (error) {
         console.warn(`Failed to buffer ${trackUrl}:`, error);
       }
@@ -93,43 +101,57 @@ const useQuranPlayer = () => {
       }
 
       // Use blob URL if available (instant, in-memory, works while screen locked)
-      // Fall back to remote URL if not yet buffered
+      // Fall back to remote URL if not yet buffered (served by CacheFirst SW)
       const blobUrl = blobUrlCacheRef.current.get(trackUrl);
       const srcToUse = blobUrl || trackUrl;
+
+      if (!blobUrl) {
+        console.warn(`No blob URL for ${trackUrl} — using remote URL (may fail in background)`);
+      }
 
       // Set new source — this resets the element
       audioRef.src = srcToUse;
 
-      // Wait for the browser to signal it has enough data, then play.
-      // This avoids the AbortError from calling play() before load completes.
-      const playWhenReady = () => {
-        const p = audioRef.play();
-        if (p !== undefined) {
-          p.then(() => {
-              setIsPlaying(true);
-              setActiveTrackUrl(trackUrl);
-
-              const activeElement = document.getElementById(trackUrl);
-              if (activeElement) {
-                const scrollTarget = activeElement.previousElementSibling || activeElement;
-                scrollTarget.scrollIntoView({ block: "nearest" });
-              }
-            })
-            .catch((e) => {
-              console.error("Error playing audio:", e);
-              intentToPlayRef.current = false;
-              setIsPlaying(false);
-              if ("mediaSession" in navigator) {
-                navigator.mediaSession.playbackState = "none";
-              }
-            });
+      // CRITICAL: Call play() IMMEDIATELY after setting src — no async gap!
+      // On Android, any delay between ended→play() lets the browser kill the
+      // audio session. With blob URLs, data is already in memory so play()
+      // should resolve instantly. With remote URLs, CacheFirst SW serves fast.
+      const onSuccess = () => {
+        setIsPlaying(true);
+        setActiveTrackUrl(trackUrl);
+        const activeElement = document.getElementById(trackUrl);
+        if (activeElement) {
+          const scrollTarget = activeElement.previousElementSibling || activeElement;
+          scrollTarget.scrollIntoView({ block: "nearest" });
         }
       };
 
-      if (audioRef.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        playWhenReady();
-      } else {
-        audioRef.addEventListener("canplay", playWhenReady, { once: true });
+      const onError = (e: Error) => {
+        console.error("Error playing audio:", e.name, e.message);
+        // AbortError happens when play() is called before media is loaded.
+        // Retry once — by now the data should be buffered.
+        if (e.name === "AbortError") {
+          console.log("Retrying play() after AbortError...");
+          const retryPromise = audioRef.play();
+          if (retryPromise) {
+            retryPromise.then(onSuccess).catch((e2) => {
+              console.error("Retry also failed:", e2);
+              intentToPlayRef.current = false;
+              setIsPlaying(false);
+            });
+          }
+          return;
+        }
+        intentToPlayRef.current = false;
+        setIsPlaying(false);
+        if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = "none";
+        }
+      };
+
+      const p = audioRef.play();
+      if (p !== undefined) {
+        p.then(onSuccess).catch(onError);
       }
     } catch (error) {
       console.error("Error in playAyat:", error);
@@ -204,6 +226,10 @@ const useQuranPlayer = () => {
       const nextTrackUrl = tracks[trackIndex + 1]?.trackUrl as TrackUrl;
 
       if (nextTrackUrl) {
+        const hasBlobUrl = blobUrlCacheRef.current.has(nextTrackUrl);
+        if (!hasBlobUrl) {
+          console.warn(`⚠️ Next track NOT preloaded as blob: ${nextTrackUrl}`);
+        }
         setActiveTrackUrl(nextTrackUrl);
         activeTrackUrlRef.current = nextTrackUrl;
         playAyatRef.current(nextTrackUrl);
@@ -371,6 +397,7 @@ const useQuranPlayer = () => {
     setShouldRepeat,
     tracksToPlay,
     audioPlayerRef,
+    preloadProgress,
     // Handlers
     handlePlay,
     handlePause,
