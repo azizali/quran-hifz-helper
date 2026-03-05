@@ -30,6 +30,30 @@ const useQuranPlayer = () => {
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
 
+  // Preload tracks for offline playback
+  const preloadTracks = useCallback(async (tracks: typeof tracksToPlay) => {
+    if (!('caches' in window)) return;
+    
+    try {
+      const cache = await caches.open('audio-cache');
+      const preloadPromises = tracks.map(async ({ trackUrl }) => {
+        try {
+          const response = await cache.match(trackUrl);
+          if (!response) {
+            // Not in cache, fetch and cache it
+            await cache.add(trackUrl);
+            console.log(`Preloaded: ${trackUrl}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to preload ${trackUrl}:`, error);
+        }
+      });
+      await Promise.allSettled(preloadPromises);
+    } catch (error) {
+      console.error('Error preloading tracks:', error);
+    }
+  }, []);
+
   const title = useMemo(
     () => `${surah.name} - Ayat ${activeAyatNumber} / ${surah.numberOfAyats}`,
     [surah.name, activeAyatNumber, surah.numberOfAyats]
@@ -164,12 +188,15 @@ const useQuranPlayer = () => {
     [handlePlay, handleStopAll]
   );
 
-  // Reset tracks when tracksToPlay changes
+  // Reset tracks when tracksToPlay changes and preload them
   useEffect(() => {
     if (!tracksToPlay.length) return;
     handleStopAll();
     setActiveTrackUrl(tracksToPlay[0].trackUrl);
-  }, [tracksToPlay, handleStopAll]);
+    
+    // Preload tracks for smooth offline playback
+    preloadTracks(tracksToPlay);
+  }, [tracksToPlay, handleStopAll, preloadTracks]);
 
   // Update document title
   useEffect(() => {
