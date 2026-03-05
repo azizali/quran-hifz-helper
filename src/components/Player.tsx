@@ -49,11 +49,8 @@ const QuranApp = () => {
           tracksToPlay={tracksToPlay}
           activeTrackUrl={activeTrackUrl}
           activeAyatNumber={activeAyatNumber}
-          setIsPlaying={setIsPlaying}
           handleAyatClick={handleAyatClick}
           isPlaying={isPlaying}
-          audioPlayerRef={audioPlayerRef}
-          handleEnded={handleEnded}
         />
         <RepeatControl
           shouldRepeat={shouldRepeat}
@@ -61,6 +58,20 @@ const QuranApp = () => {
           activeAyatNumber={activeAyatNumber}
         />
       </div>
+      
+      {/* Global Audio Element for proper seamless background playback */}
+      <audio
+        ref={audioPlayerRef}
+        className="w-full px-4 pb-2"
+        controls
+        data-trackurl={activeTrackUrl}
+        onEnded={handleEnded}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        playsInline
+        crossOrigin="anonymous"
+      />
+
       <PlayerActionBar
         isPlaying={isPlaying}
         activeTrackUrl={activeTrackUrl}
