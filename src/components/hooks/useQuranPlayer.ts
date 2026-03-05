@@ -51,15 +51,16 @@ const useQuranPlayer = () => {
         audioRef.load();
       }
 
-      if (audioRef.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-        await new Promise((resolve) => {
-          audioRef.addEventListener("canplaythrough", resolve, { once: true });
-        });
-      }
-
+      // Do NOT await canplaythrough as this breaks the synchronous user-interaction
+      // chain required by mobile browsers for background audio playback.
+      // Calling play() will automatically wait for sufficient data.
       audioRef.setAttribute("playsinline", "true");
       audioRef.setAttribute("webkit-playsinline", "true");
-      await audioRef.play();
+      
+      const playPromise = audioRef.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
       setIsPlaying(true);
 
       // We handle scrolling in a separate effect or based on the active row now,
