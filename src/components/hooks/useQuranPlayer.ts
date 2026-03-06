@@ -38,50 +38,6 @@ interface TrackOffset {
   endTime: number;
 }
 
-/** Encode an AudioBuffer as a WAV Blob (16-bit PCM). */
-function encodeWav(buffer: AudioBuffer): Blob {
-  const numChannels = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const numSamples = buffer.length;
-  const bytesPerSample = 2; // 16-bit
-  const dataLength = numSamples * numChannels * bytesPerSample;
-  const headerLength = 44;
-  const totalLength = headerLength + dataLength;
-  const arrayBuffer = new ArrayBuffer(totalLength);
-  const view = new DataView(arrayBuffer);
-
-  // RIFF header
-  writeStr(view, 0, "RIFF");
-  view.setUint32(4, totalLength - 8, true);
-  writeStr(view, 8, "WAVE");
-
-  // fmt chunk
-  writeStr(view, 12, "fmt ");
-  view.setUint32(16, 16, true); // chunk size
-  view.setUint16(20, 1, true);  // PCM format
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
-  view.setUint16(32, numChannels * bytesPerSample, true);
-  view.setUint16(34, bytesPerSample * 8, true);
-
-  // data chunk
-  writeStr(view, 36, "data");
-  view.setUint32(40, dataLength, true);
-
-  // Interleave channel data as 16-bit PCM
-  let offset = headerLength;
-  for (let i = 0; i < numSamples; i++) {
-    for (let ch = 0; ch < numChannels; ch++) {
-      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-      offset += bytesPerSample;
-    }
-  }
-
-  return new Blob([arrayBuffer], { type: "audio/wav" });
-}
-
 function writeStr(view: DataView, offset: number, str: string) {
   for (let i = 0; i < str.length; i++) {
     view.setUint8(offset + i, str.charCodeAt(i));
@@ -129,9 +85,9 @@ const useQuranPlayer = () => {
   const [isReady, setIsReady] = useState(false);
 
   // ─── Build concatenated audio blob from all tracks ───
-  // Decodes all MP3s to PCM, merges into one AudioBuffer, encodes as WAV.
-  // WAV has linear byte-to-time mapping so seeking works perfectly,
-  // unlike raw MP3 concatenation where the browser misinterprets seek positions.
+  // Decodes MP3s to PCM ONE AT A TIME and writes directly into the WAV buffer.
+  // This keeps memory usage low (only one decoded AudioBuffer at a time)
+  // instead of holding all decoded buffers + merged buffer + WAV simultaneously.
   const buildConcatenatedAudio = useCallback(async (tracks: typeof tracksToPlay) => {
     const audioRef = audioPlayerRef.current;
     if (!audioRef || tracks.length === 0) return;
@@ -146,83 +102,133 @@ const useQuranPlayer = () => {
     let loaded = 0;
     setPreloadProgress({ loaded, total });
 
-    // Fetch all tracks in parallel (order preserved by index)
-    const fetchPromises = tracks.map(async ({ trackUrl }) => {
+    // Fetch all tracks in parallel with a 30s timeout per request
+    const fetchWithTimeout = async (url: string): Promise<ArrayBuffer> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
       try {
-        const response = await fetch(trackUrl);
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.arrayBuffer();
       } catch (error) {
-        console.error(`Failed to fetch ${trackUrl}:`, error);
+        console.error(`Failed to fetch ${url}:`, error);
         return new ArrayBuffer(0);
+      } finally {
+        clearTimeout(timeoutId);
       }
-    });
+    };
 
-    const settled = await Promise.allSettled(fetchPromises);
+    const rawBuffers = await Promise.all(
+      tracks.map(({ trackUrl }) => fetchWithTimeout(trackUrl))
+    );
     if (buildIdRef.current !== thisBuildId) return; // stale
 
-    // Decode all MP3s into AudioBuffers
+    // SINGLE PASS: Decode each track to get metadata, then immediately
+    // hold decoded data for WAV writing. Process one at a time for
+    // lower peak memory. Yield to UI between tracks to prevent freezing.
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const decodedBuffers: AudioBuffer[] = [];
+    const sampleRate = audioCtx.sampleRate;
+    const yield_ = () => new Promise<void>(r => setTimeout(r, 0));
 
-    for (let i = 0; i < settled.length; i++) {
-      const result = settled[i];
-      const buffer = result.status === "fulfilled" ? result.value : new ArrayBuffer(0);
+    // First, decode all to get total sample count and channel info
+    // (we need this to allocate the WAV buffer upfront)
+    const decodedAudios: { buffer: AudioBuffer; numSamples: number }[] = [];
+    let maxChannels = 1;
 
-      if (buffer.byteLength > 0) {
+    for (let i = 0; i < rawBuffers.length; i++) {
+      const buf = rawBuffers[i];
+      let decoded: AudioBuffer;
+
+      if (buf.byteLength > 0) {
         try {
-          const decoded = await audioCtx.decodeAudioData(buffer.slice(0));
-          decodedBuffers.push(decoded);
+          decoded = await audioCtx.decodeAudioData(buf.slice(0));
         } catch {
-          // Create a tiny silent buffer as placeholder for failed decodes
-          const silent = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.01, audioCtx.sampleRate);
-          decodedBuffers.push(silent);
+          decoded = audioCtx.createBuffer(1, Math.round(sampleRate * 0.01), sampleRate);
         }
       } else {
-        const silent = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.01, audioCtx.sampleRate);
-        decodedBuffers.push(silent);
+        decoded = audioCtx.createBuffer(1, Math.round(sampleRate * 0.01), sampleRate);
       }
+
+      decodedAudios.push({ buffer: decoded, numSamples: decoded.length });
+      if (decoded.numberOfChannels > maxChannels) maxChannels = decoded.numberOfChannels;
 
       loaded++;
       setPreloadProgress({ loaded, total });
+
+      // Yield to UI so it can render progress
+      await yield_();
+
+      if (buildIdRef.current !== thisBuildId) { await audioCtx.close(); return; }
     }
 
-    if (buildIdRef.current !== thisBuildId) { await audioCtx.close(); return; }
+    const numberOfChannels = maxChannels;
 
-    // Calculate total length and build offset map
-    const sampleRate = decodedBuffers[0]?.sampleRate || audioCtx.sampleRate;
-    const numberOfChannels = Math.max(...decodedBuffers.map(b => b.numberOfChannels), 1);
+    // Build offset map
     let totalSamples = 0;
     const offsets: TrackOffset[] = [];
-
-    for (let i = 0; i < decodedBuffers.length; i++) {
+    for (let i = 0; i < decodedAudios.length; i++) {
       const startTime = totalSamples / sampleRate;
-      totalSamples += decodedBuffers[i].length;
+      totalSamples += decodedAudios[i].numSamples;
       const endTime = totalSamples / sampleRate;
       offsets.push({ trackUrl: tracks[i].trackUrl, startTime, endTime });
     }
-
     trackOffsetsRef.current = offsets;
-    const totalDuration = totalSamples / sampleRate;
-    computedDurationRef.current = totalDuration;
+    computedDurationRef.current = totalSamples / sampleRate;
 
-    // Merge all decoded PCM data into one buffer
-    const mergedBuffer = audioCtx.createBuffer(numberOfChannels, totalSamples, sampleRate);
-    let sampleOffset = 0;
-    for (const buf of decodedBuffers) {
+    // Allocate WAV buffer (header + interleaved 16-bit PCM)
+    const bytesPerSample = 2;
+    const dataLength = totalSamples * numberOfChannels * bytesPerSample;
+    const headerLength = 44;
+    const wavBuffer = new ArrayBuffer(headerLength + dataLength);
+    const view = new DataView(wavBuffer);
+
+    // Write WAV header
+    writeStr(view, 0, "RIFF");
+    view.setUint32(4, headerLength + dataLength - 8, true);
+    writeStr(view, 8, "WAVE");
+    writeStr(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true);
+    view.setUint16(32, numberOfChannels * bytesPerSample, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeStr(view, 36, "data");
+    view.setUint32(40, dataLength, true);
+
+    // Write PCM data from decoded buffers using Int16Array (fast bulk write)
+    const pcmData = new Int16Array(wavBuffer, headerLength);
+    let sampleWriteIdx = 0;
+
+    for (let i = 0; i < decodedAudios.length; i++) {
+      const decoded = decodedAudios[i].buffer;
+
+      // Get channel data references (avoids repeated getChannelData calls)
+      const channels: Float32Array[] = [];
       for (let ch = 0; ch < numberOfChannels; ch++) {
-        const destData = mergedBuffer.getChannelData(ch);
-        const srcCh = ch < buf.numberOfChannels ? ch : 0;
-        destData.set(buf.getChannelData(srcCh), sampleOffset);
+        const srcCh = ch < decoded.numberOfChannels ? ch : 0;
+        channels.push(decoded.getChannelData(srcCh));
       }
-      sampleOffset += buf.length;
+
+      // Write interleaved 16-bit samples
+      const numSamples = decoded.length;
+      for (let s = 0; s < numSamples; s++) {
+        for (let ch = 0; ch < numberOfChannels; ch++) {
+          const f = channels[ch][s];
+          pcmData[sampleWriteIdx++] = f < 0 ? f * 0x8000 : f * 0x7FFF;
+        }
+      }
+
+      // Yield after each track to keep UI responsive
+      await yield_();
+
+      if (buildIdRef.current !== thisBuildId) { await audioCtx.close(); return; }
     }
 
     await audioCtx.close();
-    if (buildIdRef.current !== thisBuildId) return;
 
-    // Encode merged AudioBuffer as WAV
-    const wavBlob = encodeWav(mergedBuffer);
+    const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
 
     // Revoke previous blob URL
     if (concatenatedBlobUrlRef.current) {
@@ -245,7 +251,7 @@ const useQuranPlayer = () => {
     setIsReady(true);
 
     console.log(
-      `Audio ready: ${tracks.length} tracks, ${totalDuration.toFixed(1)}s, ` +
+      `Audio ready: ${tracks.length} tracks, ${(totalSamples / sampleRate).toFixed(1)}s, ` +
       `${numberOfChannels}ch ${sampleRate}Hz, ` +
       `${(wavBlob.size / 1024 / 1024).toFixed(1)}MB WAV`
     );
