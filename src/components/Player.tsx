@@ -24,6 +24,8 @@ const QuranApp = () => {
     tracksToPlay,
     audioPlayerRef,
     preloadProgress,
+    buildError,
+    retryAudioBuild,
     handlePlay,
     handlePause,
     handleReset,
@@ -62,6 +64,18 @@ const QuranApp = () => {
         loaded={preloadProgress.loaded}
         total={preloadProgress.total}
       />
+
+      {buildError && (
+        <div className="px-4 py-2 bg-red-50 border border-red-300 text-red-800 text-sm">
+          <div className="mb-1">{buildError}</div>
+          <button
+            onClick={retryAudioBuild}
+            className="text-red-600 underline hover:text-red-800 font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <audio
         ref={audioPlayerRef}

@@ -24,20 +24,76 @@ function writeStr(view: DataView, offset: number, str: string) {
   }
 }
 
-async function fetchWithTimeout(url: string): Promise<ArrayBuffer> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+async function fetchWithTimeout(url: string, maxRetries = 3, bypassCache = false): Promise<ArrayBuffer> {
+  const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+  const timeoutMs = isMobile ? 60_000 : 30_000; // 60s on mobile, 30s on desktop
 
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.arrayBuffer();
-  } catch (error) {
-    console.error(`Failed to fetch ${url}:`, error);
-    return new ArrayBuffer(0);
-  } finally {
-    clearTimeout(timeoutId);
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const fetchOptions: RequestInit = {
+        signal: controller.signal,
+      };
+
+      let fetchUrl = url;
+
+      // Force fresh fetch if we suspect cache corruption
+      if (bypassCache || attempt > 1) {
+        fetchOptions.cache = "no-store";
+        // Also add a cache-buster to URL
+        const cacheBuster = `cb=${Date.now()}`;
+        fetchUrl = url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
+      }
+
+      const response = await fetch(fetchUrl, fetchOptions);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const arrayBuffer = await response.arrayBuffer();
+      clearTimeout(timeoutId);
+
+      // Validate: audio files should be at least 100 bytes
+      if (arrayBuffer.byteLength < 100) {
+        const error = new Error(
+          `Audio file too small (${arrayBuffer.byteLength}b), likely corrupted or cached as empty`
+        );
+        console.warn(`Validation failed for ${url}:`, error);
+
+        // Retry with cache bypass
+        if (attempt < maxRetries) {
+          console.log(`Retrying ${url} with cache bypass...`);
+          lastError = error;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        throw error;
+      }
+
+      return arrayBuffer;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      clearTimeout(timeoutId);
+
+      if (attempt < maxRetries) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 10_000);
+        console.warn(
+          `Fetch attempt ${attempt}/${maxRetries} failed for ${url}, retrying in ${delayMs}ms:`,
+          lastError.message
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } else {
+        console.error(`Failed to fetch ${url} after ${maxRetries} attempts:`, lastError);
+      }
+    }
   }
+
+  throw lastError || new Error(`Failed to fetch ${url}`);
 }
 
 export async function buildConcatenatedAudio({
@@ -45,19 +101,36 @@ export async function buildConcatenatedAudio({
   onProgress,
   isStale,
 }: BuildOptions): Promise<BuildResult | null> {
-  if (tracks.length === 0) {
-    return null;
-  }
+  try {
+    if (tracks.length === 0) {
+      return null;
+    }
 
-  const total = tracks.length;
-  onProgress({ loaded: 0, total });
+    const total = tracks.length;
+    onProgress({ loaded: 0, total });
 
-  const rawBuffers = await Promise.all(
+  const rawBuffers = await Promise.allSettled(
     tracks.map(({ trackUrl }) => fetchWithTimeout(trackUrl))
   );
 
   if (isStale()) {
     return null;
+  }
+
+  // Check for fetch failures and report clearly
+  const failedTracks: string[] = [];
+  rawBuffers.forEach((result, index) => {
+    if (result.status === "rejected") {
+      failedTracks.push(`${tracks[index].surahNumber}:${tracks[index].ayatNumber}`);
+    }
+  });
+
+  if (failedTracks.length > 0) {
+    const error = new Error(
+      `Failed to fetch ${failedTracks.length} track(s): ${failedTracks.join(", ")}`
+    );
+    console.error(error.message);
+    throw error;
   }
 
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -69,17 +142,21 @@ export async function buildConcatenatedAudio({
   let maxChannels = 1;
   let loaded = 0;
 
-  for (const rawBuffer of rawBuffers) {
+  for (let index = 0; index < rawBuffers.length; index++) {
+    const result = rawBuffers[index];
     let decoded: AudioBuffer;
 
-    if (rawBuffer.byteLength > 0) {
+    if (result.status === "fulfilled" && result.value.byteLength > 0) {
       try {
-        decoded = await audioCtx.decodeAudioData(rawBuffer.slice(0));
-      } catch {
-        decoded = audioCtx.createBuffer(1, Math.round(sampleRate * 0.01), sampleRate);
+        decoded = await audioCtx.decodeAudioData(result.value.slice(0));
+      } catch (error) {
+        const trackInfo = `${tracks[index].surahNumber}:${tracks[index].ayatNumber}`;
+        console.error(`Failed to decode track ${trackInfo}:`, error);
+        throw new Error(`Audio decode failed for track ${trackInfo}`);
       }
     } else {
-      decoded = audioCtx.createBuffer(1, Math.round(sampleRate * 0.01), sampleRate);
+      const trackInfo = `${tracks[index].surahNumber}:${tracks[index].ayatNumber}`;
+      throw new Error(`Missing audio data for track ${trackInfo}`);
     }
 
     decodedAudios.push({ buffer: decoded, numSamples: decoded.length });
@@ -166,9 +243,14 @@ export async function buildConcatenatedAudio({
       `${maxChannels}ch ${sampleRate}Hz, ${(wavBlob.size / 1024 / 1024).toFixed(1)}MB WAV`
   );
 
-  return {
-    blobUrl,
-    offsets,
-    duration: totalSamples / sampleRate,
-  };
+    return {
+      blobUrl,
+      offsets,
+      duration: totalSamples / sampleRate,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Audio build failed:", message);
+    return null;
+  }
 }

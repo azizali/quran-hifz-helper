@@ -66,6 +66,7 @@ const useQuranPlayer = () => {
 
   const [preloadProgress, setPreloadProgress] = useState({ loaded: 0, total: 0 });
   const [isReady, setIsReady] = useState(false);
+  const [buildError, setBuildError] = useState<string | null>(null);
 
   const buildAndAttachAudio = useCallback(async (tracks: TrackObject[]) => {
     const audioRef = audioPlayerRef.current;
@@ -75,13 +76,22 @@ const useQuranPlayer = () => {
 
     isReadyRef.current = false;
     setIsReady(false);
+    setBuildError(null);
+
     const result = await buildConcatenatedAudio({
       tracks,
       onProgress: setPreloadProgress,
       isStale: () => buildIdRef.current !== thisBuildId,
     });
 
-    if (!result || buildIdRef.current !== thisBuildId) {
+    if (buildIdRef.current !== thisBuildId) {
+      return;
+    }
+
+    if (!result) {
+      setBuildError(
+        "Failed to load audio. Some tracks may be unavailable or your network is too slow. Please try again."
+      );
       return;
     }
 
@@ -101,6 +111,7 @@ const useQuranPlayer = () => {
 
     isReadyRef.current = true;
     setIsReady(true);
+    setBuildError(null);
   }, []);
 
   // ─── Document title reflects active ayat ───
@@ -235,6 +246,13 @@ const useQuranPlayer = () => {
     buildAndAttachAudio(tracksToPlay);
   }, [tracksToPlay, handleStopAll, buildAndAttachAudio]);
 
+  // Retry audio build on demand
+  const retryAudioBuild = useCallback(() => {
+    if (tracksToPlay.length > 0) {
+      buildAndAttachAudio(tracksToPlay);
+    }
+  }, [tracksToPlay, buildAndAttachAudio]);
+
   // Update document title
   useEffect(() => {
     document.title = `${title} - ${appName}`;
@@ -295,11 +313,13 @@ const useQuranPlayer = () => {
     audioPlayerRef,
     preloadProgress,
     isReady,
+    buildError,
     // Handlers
     handlePlay,
     handlePause,
     handleReset,
     handleAyatClick,
+    retryAudioBuild,
   };
 };
 
