@@ -3,8 +3,6 @@ import PlayIcon from "../icons/PlayIcon";
 import SaveIcon from "../icons/SaveIcon";
 import { useCachedAssets } from "../useCachedAssets";
 
-export const REPEAT_SOUND_TRACK = "/click-sound.mp3" as TrackUrl;
-
 interface AyatListProps {
   tracksToPlay: TrackObject[];
   activeTrackUrl: TrackUrl;
@@ -28,11 +26,9 @@ export const AyatList: React.FC<AyatListProps> = ({
   return (
     <div className="overflow-y-scroll border scroll-smooth">
       {tracksToPlay.map(({ ayatNumber, trackUrl }) => {
-        if (trackUrl === REPEAT_SOUND_TRACK) return null;
-        
         const isCachedTrack = cachedAudio[trackUrl];
         const isActiveTrack = activeTrackUrl === trackUrl;
-        const isInactiveTrack = activeTrackUrl !== trackUrl;
+        const isInactiveTrack = !isActiveTrack;
         
         return (
           <div

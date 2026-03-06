@@ -1,5 +1,4 @@
 import type { TrackObject, TrackUrl } from "../_main/types";
-import { REPEAT_SOUND_TRACK } from "./controls/AyatList";
 import qaris, { type QariKey } from "./controls/qari";
 
 const audioExtention = "mp3"; // 'opus' | 'mp3'
@@ -7,7 +6,6 @@ const audioSrcBaseUrl = `https://everyayah.com/data`;
 
 export const getTracksToPlay = (
   ayatRange: [number, number],
-  shouldRepeat: boolean,
   surahNumber: number,
   qariKey: QariKey
 ): TrackObject[] => {
@@ -33,14 +31,6 @@ export const getTracksToPlay = (
       trackUrl,
     };
   });
-
-  if (shouldRepeat) {
-    trackObjects.push({
-      surahNumber,
-      ayatNumber,
-      trackUrl: REPEAT_SOUND_TRACK,
-    });
-  }
 
   return trackObjects;
 };

@@ -1,6 +1,6 @@
 import { registerSW } from 'virtual:pwa-register'
 
-const updateSW = registerSW({
+registerSW({
   onNeedRefresh() {
     console.log('New content available, please refresh.')
   },
@@ -11,5 +11,3 @@ const updateSW = registerSW({
     console.log('SW registered: ', swScriptUrl)
   },
 })
-
-export { updateSW }

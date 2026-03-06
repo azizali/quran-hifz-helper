@@ -2,6 +2,7 @@ import { appName } from "../_main/config";
 import AyatList from "./controls/AyatList";
 import PlayControls from "./controls/PlayControls";
 import PlayerActionBar from "./controls/PlayerActionBar";
+import PreloadProgress from "./controls/PreloadProgress";
 import RepeatControl from "./controls/RepeatControl";
 import Header from "./Header";
 import useQuranPlayer from "./hooks/useQuranPlayer";
@@ -57,23 +58,11 @@ const QuranApp = () => {
           activeAyatNumber={activeAyatNumber}
         />
       </div>
-      
-      {/* Buffer progress — all tracks are concatenated into a single audio stream */}
-      {preloadProgress.total > 0 && preloadProgress.loaded < preloadProgress.total && (
-        <div className="px-4 pb-1">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-              <div
-                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${(preloadProgress.loaded / preloadProgress.total) * 100}%` }}
-              />
-            </div>
-            <span>Loading {preloadProgress.loaded}/{preloadProgress.total}</span>
-          </div>
-        </div>
-      )}
+      <PreloadProgress
+        loaded={preloadProgress.loaded}
+        total={preloadProgress.total}
+      />
 
-      {/* Single persistent audio element — event listeners attached natively in hook */}
       <audio
         ref={audioPlayerRef}
         className="w-full px-4 pb-2"

@@ -1,4 +1,5 @@
 import qaris, { type QariKey } from "./qari";
+import SelectField from "./SelectField";
 
 interface QariSelectorProps {
   qariKey: QariKey;
@@ -10,25 +11,22 @@ export const QariSelector: React.FC<QariSelectorProps> = ({
   setQariKey
 }) => {
   return (
-    <>
-      <div>
-        <label htmlFor="qari">Qari</label>
-        <select
-          className="border-2 rounded p-2 w-full"
-          name="qari"
-          id="qari"
-          value={qariKey}
-          size={1}
-          onChange={(e) => setQariKey(e.target.value as QariKey)}
-        >
-          {Object.keys(qaris).map((qariKey) => (
-            <option key={qariKey} value={qariKey}>
-              {qaris[qariKey as QariKey].name}
-            </option>
-          ))}
-        </select>
-      </div>
-    </>
+    <SelectField label="Qari" htmlFor="qari">
+      <select
+        className="border-2 rounded p-2 w-full"
+        name="qari"
+        id="qari"
+        value={qariKey}
+        size={1}
+        onChange={(e) => setQariKey(e.target.value as QariKey)}
+      >
+        {Object.keys(qaris).map((qariKey) => (
+          <option key={qariKey} value={qariKey}>
+            {qaris[qariKey as QariKey].name}
+          </option>
+        ))}
+      </select>
+    </SelectField>
   );
 };
 
