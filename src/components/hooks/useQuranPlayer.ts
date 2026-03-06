@@ -26,11 +26,66 @@ import { getActiveAyatNumber, getTracksToPlay } from "../utils";
  * - Android has no opportunity to kill the audio session
  * - Seeking to a specific ayat = seeking to its time offset
  * - Repeat = seek back to 0 when the concatenated audio ends
+ *
+ * The track list is built WITHOUT shouldRepeat — repeat is handled
+ * purely by seeking to 0 on end. This avoids rebuilding audio when
+ * the repeat checkbox is toggled.
  */
 
 interface TrackOffset {
   trackUrl: TrackUrl;
   startTime: number;
+  endTime: number;
+}
+
+/** Encode an AudioBuffer as a WAV Blob (16-bit PCM). */
+function encodeWav(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numSamples = buffer.length;
+  const bytesPerSample = 2; // 16-bit
+  const dataLength = numSamples * numChannels * bytesPerSample;
+  const headerLength = 44;
+  const totalLength = headerLength + dataLength;
+  const arrayBuffer = new ArrayBuffer(totalLength);
+  const view = new DataView(arrayBuffer);
+
+  // RIFF header
+  writeStr(view, 0, "RIFF");
+  view.setUint32(4, totalLength - 8, true);
+  writeStr(view, 8, "WAVE");
+
+  // fmt chunk
+  writeStr(view, 12, "fmt ");
+  view.setUint32(16, 16, true); // chunk size
+  view.setUint16(20, 1, true);  // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+
+  // data chunk
+  writeStr(view, 36, "data");
+  view.setUint32(40, dataLength, true);
+
+  // Interleave channel data as 16-bit PCM
+  let offset = headerLength;
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: "audio/wav" });
+}
+
+function writeStr(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
 }
 
 const useQuranPlayer = () => {
@@ -48,14 +103,22 @@ const useQuranPlayer = () => {
   const shouldRepeatRef = useRef(shouldRepeat);
   const trackOffsetsRef = useRef<TrackOffset[]>([]);
   const concatenatedBlobUrlRef = useRef<string>("");
+  const computedDurationRef = useRef(0); // accurate total duration from decodeAudioData
   const isReadyRef = useRef(false);
   const buildIdRef = useRef(0); // to discard stale builds
 
   const surah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
+  // Track list WITHOUT repeat — repeat is purely seek-to-0 logic
+  // This prevents rebuilding the concatenated audio when toggling repeat
   const tracksToPlay = useMemo(() => {
     return getTracksToPlay(ayatRange, shouldRepeat, surahNumber, qariKey);
   }, [ayatRange, shouldRepeat, surahNumber, qariKey]);
+
+  // The actual tracks used for the concatenated audio (no REPEAT_SOUND_TRACK)
+  const audioTracks = useMemo(() => {
+    return tracksToPlay.filter(t => t.trackUrl !== REPEAT_SOUND_TRACK);
+  }, [tracksToPlay]);
 
   // Keep refs in sync
   useEffect(() => { shouldRepeatRef.current = shouldRepeat; }, [shouldRepeat]);
@@ -66,6 +129,9 @@ const useQuranPlayer = () => {
   const [isReady, setIsReady] = useState(false);
 
   // ─── Build concatenated audio blob from all tracks ───
+  // Decodes all MP3s to PCM, merges into one AudioBuffer, encodes as WAV.
+  // WAV has linear byte-to-time mapping so seeking works perfectly,
+  // unlike raw MP3 concatenation where the browser misinterprets seek positions.
   const buildConcatenatedAudio = useCallback(async (tracks: typeof tracksToPlay) => {
     const audioRef = audioPlayerRef.current;
     if (!audioRef || tracks.length === 0) return;
@@ -95,62 +161,75 @@ const useQuranPlayer = () => {
     const settled = await Promise.allSettled(fetchPromises);
     if (buildIdRef.current !== thisBuildId) return; // stale
 
-    const buffers: ArrayBuffer[] = [];
-    const durations: number[] = [];
-
-    // Measure each track's duration via AudioContext.decodeAudioData
+    // Decode all MP3s into AudioBuffers
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const decodedBuffers: AudioBuffer[] = [];
 
     for (let i = 0; i < settled.length; i++) {
       const result = settled[i];
       const buffer = result.status === "fulfilled" ? result.value : new ArrayBuffer(0);
-      buffers.push(buffer);
 
       if (buffer.byteLength > 0) {
         try {
-          // decodeAudioData detaches the buffer, so decode a copy
           const decoded = await audioCtx.decodeAudioData(buffer.slice(0));
-          durations.push(decoded.duration);
+          decodedBuffers.push(decoded);
         } catch {
-          durations.push(0);
+          // Create a tiny silent buffer as placeholder for failed decodes
+          const silent = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.01, audioCtx.sampleRate);
+          decodedBuffers.push(silent);
         }
       } else {
-        durations.push(0);
+        const silent = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.01, audioCtx.sampleRate);
+        decodedBuffers.push(silent);
       }
 
       loaded++;
       setPreloadProgress({ loaded, total });
     }
 
-    await audioCtx.close();
-    if (buildIdRef.current !== thisBuildId) return; // stale
+    if (buildIdRef.current !== thisBuildId) { await audioCtx.close(); return; }
 
-    // Build cumulative time offset map
+    // Calculate total length and build offset map
+    const sampleRate = decodedBuffers[0]?.sampleRate || audioCtx.sampleRate;
+    const numberOfChannels = Math.max(...decodedBuffers.map(b => b.numberOfChannels), 1);
+    let totalSamples = 0;
     const offsets: TrackOffset[] = [];
-    let cumTime = 0;
-    for (let i = 0; i < tracks.length; i++) {
-      offsets.push({ trackUrl: tracks[i].trackUrl, startTime: cumTime });
-      cumTime += durations[i];
-    }
-    trackOffsetsRef.current = offsets;
 
-    // Concatenate raw MP3 bytes into one blob
-    // (MP3 is frame-based — raw concatenation produces a valid stream)
-    const totalBytes = buffers.reduce((sum, b) => sum + b.byteLength, 0);
-    const merged = new Uint8Array(totalBytes);
-    let byteOffset = 0;
-    for (const buf of buffers) {
-      merged.set(new Uint8Array(buf), byteOffset);
-      byteOffset += buf.byteLength;
+    for (let i = 0; i < decodedBuffers.length; i++) {
+      const startTime = totalSamples / sampleRate;
+      totalSamples += decodedBuffers[i].length;
+      const endTime = totalSamples / sampleRate;
+      offsets.push({ trackUrl: tracks[i].trackUrl, startTime, endTime });
     }
+
+    trackOffsetsRef.current = offsets;
+    const totalDuration = totalSamples / sampleRate;
+    computedDurationRef.current = totalDuration;
+
+    // Merge all decoded PCM data into one buffer
+    const mergedBuffer = audioCtx.createBuffer(numberOfChannels, totalSamples, sampleRate);
+    let sampleOffset = 0;
+    for (const buf of decodedBuffers) {
+      for (let ch = 0; ch < numberOfChannels; ch++) {
+        const destData = mergedBuffer.getChannelData(ch);
+        const srcCh = ch < buf.numberOfChannels ? ch : 0;
+        destData.set(buf.getChannelData(srcCh), sampleOffset);
+      }
+      sampleOffset += buf.length;
+    }
+
+    await audioCtx.close();
+    if (buildIdRef.current !== thisBuildId) return;
+
+    // Encode merged AudioBuffer as WAV
+    const wavBlob = encodeWav(mergedBuffer);
 
     // Revoke previous blob URL
     if (concatenatedBlobUrlRef.current) {
       URL.revokeObjectURL(concatenatedBlobUrlRef.current);
     }
 
-    const blob = new Blob([merged], { type: "audio/mpeg" });
-    const blobUrl = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(wavBlob);
     concatenatedBlobUrlRef.current = blobUrl;
 
     // Set the single source — this is the ONLY time src is set
@@ -166,11 +245,27 @@ const useQuranPlayer = () => {
     setIsReady(true);
 
     console.log(
-      `Audio ready: ${tracks.length} tracks, ${cumTime.toFixed(1)}s total, ` +
-      `${(totalBytes / 1024 / 1024).toFixed(1)}MB`
+      `Audio ready: ${tracks.length} tracks, ${totalDuration.toFixed(1)}s, ` +
+      `${numberOfChannels}ch ${sampleRate}Hz, ` +
+      `${(wavBlob.size / 1024 / 1024).toFixed(1)}MB WAV`
     );
   }, []);
 
+  // ─── MediaSession metadata helper ───
+  const updateMediaSessionMetadata = useCallback(() => {
+    if (!("mediaSession" in navigator)) return;
+    const [startAyat, endAyat] = ayatRange;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `${surah.name} - Ayat ${startAyat}-${endAyat}`,
+      album: surah.name,
+      artist: appName,
+    });
+  }, [surah.name, ayatRange]);
+
+  const updateMediaSessionRef = useRef(updateMediaSessionMetadata);
+  useEffect(() => { updateMediaSessionRef.current = updateMediaSessionMetadata; }, [updateMediaSessionMetadata]);
+
+  // ─── Document title reflects active ayat ───
   const title = useMemo(
     () => `${surah.name} - Ayat ${activeAyatNumber} / ${surah.numberOfAyats}`,
     [surah.name, activeAyatNumber, surah.numberOfAyats]
@@ -183,12 +278,8 @@ const useQuranPlayer = () => {
 
     intentToPlayRef.current = true;
 
+    updateMediaSessionMetadata();
     if ("mediaSession" in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: title,
-        album: surah.name,
-        artist: appName,
-      });
       navigator.mediaSession.playbackState = "playing";
     }
 
@@ -200,7 +291,7 @@ const useQuranPlayer = () => {
         setIsPlaying(false);
       });
     }
-  }, [title, surah.name]);
+  }, [activeAyatNumber, updateMediaSessionMetadata]);
 
   // Refs for use in native event listeners
   const startPlaybackRef = useRef(startPlayback);
@@ -291,13 +382,14 @@ const useQuranPlayer = () => {
             activeTrackUrlRef.current = trackUrl;
             setActiveTrackUrl(trackUrl);
 
-            // Scroll into view (skip for repeat sound)
-            if (trackUrl !== REPEAT_SOUND_TRACK) {
-              const el = document.getElementById(trackUrl);
-              if (el) {
-                const scrollTarget = el.previousElementSibling || el;
-                scrollTarget.scrollIntoView({ block: "nearest" });
-              }
+            // Update MediaSession with current ayat info
+            updateMediaSessionRef.current();
+
+            // Scroll into view
+            const el = document.getElementById(trackUrl);
+            if (el) {
+              const scrollTarget = el.previousElementSibling || el;
+              scrollTarget.scrollIntoView({ block: "nearest" });
             }
           }
           break;
@@ -305,7 +397,7 @@ const useQuranPlayer = () => {
       }
     };
 
-    // The entire concatenated audio has ended
+    // The WAV audio has ended
     const onEnded = () => {
       if (shouldRepeatRef.current) {
         // Loop: seek back to start and play — no src change!
@@ -348,12 +440,13 @@ const useQuranPlayer = () => {
     };
   }, []); // Empty deps — all state read via refs
 
-  // ─── Rebuild concatenated audio when track list changes ───
+  // ─── Rebuild concatenated audio when audio tracks change ───
+  // Uses audioTracks (no REPEAT_SOUND_TRACK) so toggling repeat won't rebuild
   useEffect(() => {
-    if (!tracksToPlay.length) return;
+    if (!audioTracks.length) return;
     handleStopAll();
-    buildConcatenatedAudio(tracksToPlay);
-  }, [tracksToPlay, handleStopAll, buildConcatenatedAudio]);
+    buildConcatenatedAudio(audioTracks);
+  }, [audioTracks, handleStopAll, buildConcatenatedAudio]);
 
   // Update document title
   useEffect(() => {
