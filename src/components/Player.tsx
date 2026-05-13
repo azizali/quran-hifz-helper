@@ -26,6 +26,11 @@ const QuranApp = () => {
     preloadProgress,
     buildError,
     retryAudioBuild,
+    playbackRate,
+    onIncreasePlaybackRate,
+    onDecreasePlaybackRate,
+    canIncreasePlaybackRate,
+    canDecreasePlaybackRate,
     handlePlay,
     handlePause,
     handleReset,
@@ -91,6 +96,11 @@ const QuranApp = () => {
         activeTrackUrl={activeTrackUrl}
         activeAyatNumber={activeAyatNumber}
         startingAyatNumber={startingAyatNumber}
+        playbackRate={playbackRate}
+        onIncreasePlaybackRate={onIncreasePlaybackRate}
+        onDecreasePlaybackRate={onDecreasePlaybackRate}
+        canIncreasePlaybackRate={canIncreasePlaybackRate}
+        canDecreasePlaybackRate={canDecreasePlaybackRate}
         handlePlay={handlePlay}
         handlePause={handlePause}
         handleReset={handleReset}

@@ -15,6 +15,15 @@ import type { TrackOffset } from "./quranPlayer/types";
 import { useAudioElementEvents } from "./quranPlayer/useAudioElementEvents";
 import { useMediaSession } from "./quranPlayer/useMediaSession";
 
+const PLAYBACK_RATE_STEP = 0.25;
+const MIN_PLAYBACK_RATE = 1;
+const MAX_PLAYBACK_RATE = 3;
+
+const clampPlaybackRate = (rate: number) => {
+  const rounded = Math.round(rate / PLAYBACK_RATE_STEP) * PLAYBACK_RATE_STEP;
+  return Math.min(MAX_PLAYBACK_RATE, Math.max(MIN_PLAYBACK_RATE, rounded));
+};
+
 /**
  * ARCHITECTURE: Concatenated Audio Playback
  *
@@ -43,6 +52,7 @@ const useQuranPlayer = () => {
   const [surahNumber, setSurahNumber] = useLocalStorage<number>("surahNumber", 1);
   const [ayatRange, setAyatRange] = useLocalStorage<[number, number]>("ayatRange", [1, 1]);
   const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>("shouldRepeat", true);
+  const [playbackRate, setPlaybackRate] = useLocalStorage<number>("playbackRate", 1);
 
   // Refs for event listeners (avoid stale closures)
   const intentToPlayRef = useRef(false);
@@ -162,7 +172,7 @@ const useQuranPlayer = () => {
 
   const { setPlaybackState, updateMediaSessionMetadata } = useMediaSession({
     surahName: surah.name,
-    ayatRange,
+    totalAyats: surah.numberOfAyats,
     artistName: appName,
     audioPlayerRef,
     intentToPlayRef,
@@ -172,6 +182,17 @@ const useQuranPlayer = () => {
     seekToTrackRef,
     setIsPlaying,
   });
+
+  const onIncreasePlaybackRate = useCallback(() => {
+    setPlaybackRate((currentRate) => clampPlaybackRate(currentRate + PLAYBACK_RATE_STEP));
+  }, [setPlaybackRate]);
+
+  const onDecreasePlaybackRate = useCallback(() => {
+    setPlaybackRate((currentRate) => clampPlaybackRate(currentRate - PLAYBACK_RATE_STEP));
+  }, [setPlaybackRate]);
+
+  const canIncreasePlaybackRate = playbackRate < MAX_PLAYBACK_RATE;
+  const canDecreasePlaybackRate = playbackRate > MIN_PLAYBACK_RATE;
 
   // ─── Pause ───
   const pauseAyat = useCallback(() => {
@@ -229,7 +250,7 @@ const useQuranPlayer = () => {
     setActiveTrackUrl,
     setIsPlaying,
     onTrackChanged: () => {
-      updateMediaSessionMetadata();
+      updateMediaSessionMetadata(activeTrackUrlRef.current);
       const element = document.getElementById(activeTrackUrlRef.current);
       if (element) {
         const scrollTarget = element.previousElementSibling || element;
@@ -282,10 +303,12 @@ const useQuranPlayer = () => {
   useEffect(() => {
     const audioRef = audioPlayerRef.current;
     if (audioRef) {
+      audioRef.playbackRate = playbackRate;
+      audioRef.defaultPlaybackRate = playbackRate;
       audioRef.setAttribute("playsinline", "true");
       audioRef.setAttribute("webkit-playsinline", "true");
     }
-  }, []);
+  }, [playbackRate]);
 
   useEffect(() => {
     return () => {
@@ -309,6 +332,11 @@ const useQuranPlayer = () => {
     setAyatRange,
     shouldRepeat,
     setShouldRepeat,
+    playbackRate,
+    onIncreasePlaybackRate,
+    onDecreasePlaybackRate,
+    canIncreasePlaybackRate,
+    canDecreasePlaybackRate,
     tracksToPlay,
     audioPlayerRef,
     preloadProgress,

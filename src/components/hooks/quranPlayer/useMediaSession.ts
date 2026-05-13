@@ -1,10 +1,11 @@
 import { useCallback, useEffect, type MutableRefObject, type RefObject } from "react";
 import type { TrackUrl } from "../../../_main/types";
+import { getActiveAyatNumber } from "../../utils";
 import type { TrackOffset } from "./types";
 
 type UseMediaSessionParams = {
   surahName: string;
-  ayatRange: [number, number];
+  totalAyats: number;
   artistName: string;
   audioPlayerRef: RefObject<HTMLAudioElement | null>;
   intentToPlayRef: MutableRefObject<boolean>;
@@ -17,7 +18,7 @@ type UseMediaSessionParams = {
 
 export function useMediaSession({
   surahName,
-  ayatRange,
+  totalAyats,
   artistName,
   audioPlayerRef,
   intentToPlayRef,
@@ -33,16 +34,23 @@ export function useMediaSession({
     }
   }, []);
 
-  const updateMediaSessionMetadata = useCallback(() => {
+  const updateMediaSessionMetadata = useCallback((trackUrl?: TrackUrl) => {
     if (!("mediaSession" in navigator)) return;
 
-    const [startAyat, endAyat] = ayatRange;
+    const currentTrackUrl = trackUrl || activeTrackUrlRef.current;
+    const activeAyatNumber = getActiveAyatNumber(currentTrackUrl);
+    const title = `${surahName} - Ayat ${activeAyatNumber} / ${totalAyats}`;
+
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: `${surahName} - Ayat ${startAyat}-${endAyat}`,
-      album: surahName,
+      title,
+      album: title,
       artist: artistName,
     });
-  }, [surahName, ayatRange, artistName]);
+  }, [surahName, totalAyats, artistName, activeTrackUrlRef]);
+
+  useEffect(() => {
+    updateMediaSessionMetadata();
+  }, [updateMediaSessionMetadata]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
