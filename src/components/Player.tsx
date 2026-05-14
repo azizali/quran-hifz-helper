@@ -80,7 +80,7 @@ const QuranApp = () => {
           </button>
         )}
       />
-      <div className="px-4 pb-4 flex-grow overflow-hidden flex gap-2 flex-col">
+      <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col">
         <PlayControls
           qariKey={qariKey}
           setQariKey={setQariKey}

@@ -4,10 +4,11 @@ type SelectFieldProps = {
   children: React.ReactNode;
 };
 
+
 const SelectField = ({ label, htmlFor, children }: SelectFieldProps) => {
   return (
-    <div>
-      <label htmlFor={htmlFor}>{label}</label>
+    <div className="flex items-center gap-2">
+      <label htmlFor={htmlFor} className="whitespace-nowrap mr-2 min-w-9">{label}</label>
       {children}
     </div>
   );

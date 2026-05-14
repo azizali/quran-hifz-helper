@@ -1,5 +1,6 @@
 import type { SURAH } from "../../_main/types";
 import BookmarkIcon from "../icons/BookmarkIcon";
+import SelectField from "./SelectField";
 
 interface AyatRangeSelectorProps {
   ayatRange: [number, number];
@@ -18,8 +19,8 @@ const handleAyatChange = (currentStart: number, currentEnd: number, newValue: nu
 
 const getBookmarkButtonClass = (isBookmarked: boolean) =>
   isBookmarked
-    ? "relative inline-flex h-9 w-9 items-center justify-center rounded border border-orange-500 bg-orange-500 text-white transition-colors hover:bg-orange-600"
-    : "relative inline-flex h-9 w-9 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50";
+    ? "relative inline-flex h-10 w-10 items-center justify-center rounded border border-orange-500 bg-orange-500 text-white transition-colors hover:bg-orange-600"
+    : "relative inline-flex h-10 w-10 items-center justify-center rounded border bg-white text-slate-600 transition-colors hover:bg-slate-50";
 
 const getBookmarkBadgeClass = (isBookmarked: boolean) =>
   isBookmarked
@@ -48,10 +49,9 @@ export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
   return (
     <>
       <div className="flex items-end gap-2 flex-wrap">
-        <div className="flex gap-2 items-center">
-          <label htmlFor="startingAyatNumber">Starting</label>
+        <SelectField label="Starting" htmlFor="startingAyatNumber">
           <select
-            className="border-2 rounded p-2"
+            className="border rounded p-2 h-10"
             name="startingAyatNumber"
             id="startingAyatNumber"
             value={startingAyatNumber}
@@ -63,11 +63,10 @@ export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
               </option>
             ))}
           </select>
-        </div>
-        <div className="flex gap-2 items-center">
-          <label htmlFor="endingAyatNumber">Ending</label>
+        </SelectField>
+        <SelectField label="Ending" htmlFor="endingAyatNumber">
           <select
-            className="border-2 rounded p-2"
+            className="border rounded p-2 h-10"
             name="endingAyatNumber"
             id="endingAyatNumber"
             value={endingAyatNumber}
@@ -84,7 +83,7 @@ export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
               );
             })}
           </select>
-        </div>
+        </SelectField>
         <button
           className={getBookmarkButtonClass(isBookmarked)}
           onClick={toggleCurrentSelectionBookmark}

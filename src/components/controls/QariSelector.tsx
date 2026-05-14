@@ -13,7 +13,7 @@ export const QariSelector: React.FC<QariSelectorProps> = ({
   return (
     <SelectField label="Qari" htmlFor="qari">
       <select
-        className="border-2 rounded p-2 w-full"
+        className="border rounded p-2 w-full"
         name="qari"
         id="qari"
         value={qariKey}

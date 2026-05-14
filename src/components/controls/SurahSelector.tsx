@@ -14,7 +14,7 @@ export const SurahSelector: React.FC<SurahSelectorProps> = ({
   return (
     <SelectField label="Surah" htmlFor="surah">
       <select
-        className="border-2 rounded p-2 w-full"
+        className="border rounded p-2 w-full"
         name="surah"
         id="surah"
         value={surahNumber}

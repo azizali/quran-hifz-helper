@@ -24,7 +24,7 @@ export const AyatList: React.FC<AyatListProps> = ({
   ]);
 
   return (
-    <div className="overflow-y-scroll border scroll-smooth">
+    <div className="overflow-y-scroll border scroll-smooth rounded">
       {tracksToPlay.map(({ ayatNumber, trackUrl, surahNumber }, index) => {
         const isCachedTrack = cachedAudio[trackUrl];
         const isActiveTrack = activeTrackUrl === trackUrl;
@@ -35,7 +35,7 @@ export const AyatList: React.FC<AyatListProps> = ({
           <div
             key={`${trackUrl}-${index}`}
                 data-track-url={trackUrl}
-            className="block p-2 border-y border-t-0 w-full even:bg-slate-100"
+            className="block p-2 border-b last:border-b-0 w-full even:bg-slate-100"
           >
             <div className="flex">
               {isActiveTrack && (
