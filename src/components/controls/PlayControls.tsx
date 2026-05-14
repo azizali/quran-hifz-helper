@@ -12,6 +12,8 @@ interface PlayerControlsProps {
   ayatRange: [number, number];
   setAyatRange: React.Dispatch<React.SetStateAction<[number, number]>>;
   surah: SURAH;
+  toggleCurrentSelectionBookmark: () => void;
+  isBookmarked: boolean;
 }
 
 export const PlayControls: React.FC<PlayerControlsProps> = ({
@@ -22,6 +24,8 @@ export const PlayControls: React.FC<PlayerControlsProps> = ({
   ayatRange,
   setAyatRange,
   surah,
+  toggleCurrentSelectionBookmark,
+  isBookmarked,
 }) => {
   return (
     <>
@@ -35,6 +39,8 @@ export const PlayControls: React.FC<PlayerControlsProps> = ({
         ayatRange={ayatRange}
         setAyatRange={setAyatRange}
         surah={surah}
+        toggleCurrentSelectionBookmark={toggleCurrentSelectionBookmark}
+        isBookmarked={isBookmarked}
       />
     </>
   );

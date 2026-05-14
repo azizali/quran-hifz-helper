@@ -8,6 +8,7 @@ import {
 import { useLocalStorage } from "usehooks-ts";
 import { appName, surahs } from "../../_main/config";
 import { type TrackObject, type TrackUrl } from "../../_main/types";
+import type { Bookmark, SelectionRange } from "../controls/libraryTypes";
 import { defaultQariKey, type QariKey } from "../controls/qari";
 import { getActiveAyatNumber, getTracksToPlay } from "../utils";
 import { buildConcatenatedAudio } from "./quranPlayer/buildConcatenatedAudio";
@@ -22,6 +23,28 @@ const MAX_PLAYBACK_RATE = 3;
 const clampPlaybackRate = (rate: number) => {
   const rounded = Math.round(rate / PLAYBACK_RATE_STEP) * PLAYBACK_RATE_STEP;
   return Math.min(MAX_PLAYBACK_RATE, Math.max(MIN_PLAYBACK_RATE, rounded));
+};
+
+const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const getSelectionLabel = (
+  selectedSurahNumber: number,
+  selectedAyatRange: SelectionRange
+) => {
+  const selectedSurah = surahs[selectedSurahNumber - 1];
+  if (!selectedSurah) {
+    return `Surah #${selectedSurahNumber}`;
+  }
+
+  const [startAyatNumber, endAyatNumber] = selectedAyatRange;
+  const isFullSurah =
+    startAyatNumber === 1 && endAyatNumber === selectedSurah.numberOfAyats;
+
+  if (isFullSurah) {
+    return `${selectedSurah.number}. ${selectedSurah.name} (Full Surah)`;
+  }
+
+  return `${selectedSurah.number}. ${selectedSurah.name} (Ayat ${startAyatNumber}-${endAyatNumber})`;
 };
 
 /**
@@ -51,6 +74,7 @@ const useQuranPlayer = () => {
   const [qariKey, setQariKey] = useLocalStorage<QariKey>("qariKey", defaultQariKey);
   const [surahNumber, setSurahNumber] = useLocalStorage<number>("surahNumber", 1);
   const [ayatRange, setAyatRange] = useLocalStorage<[number, number]>("ayatRange", [1, 1]);
+  const [bookmarks, setBookmarks] = useLocalStorage<Bookmark[]>("bookmarks", []);
   const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>("shouldRepeat", true);
   const [playbackRate, setPlaybackRate] = useLocalStorage<number>("playbackRate", 1);
 
@@ -63,7 +87,7 @@ const useQuranPlayer = () => {
   const isReadyRef = useRef(false);
   const buildIdRef = useRef(0); // to discard stale builds
 
-  const surah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
+  const selectedSurah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
   const tracksToPlay = useMemo(() => {
     return getTracksToPlay(ayatRange, surahNumber, qariKey);
@@ -73,6 +97,14 @@ const useQuranPlayer = () => {
   useEffect(() => { shouldRepeatRef.current = shouldRepeat; }, [shouldRepeat]);
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
+  const activeTrack = useMemo(
+    () => tracksToPlay.find((track) => track.trackUrl === activeTrackUrl),
+    [tracksToPlay, activeTrackUrl]
+  );
+  const activeSurah = useMemo(
+    () => (activeTrack ? surahs[activeTrack.surahNumber - 1] : selectedSurah),
+    [activeTrack, selectedSurah]
+  );
 
   const [preloadProgress, setPreloadProgress] = useState({ loaded: 0, total: 0 });
   const [isReady, setIsReady] = useState(false);
@@ -126,8 +158,8 @@ const useQuranPlayer = () => {
 
   // ─── Document title reflects active ayat ───
   const title = useMemo(
-    () => `${surah.name} - Ayat ${activeAyatNumber} / ${surah.numberOfAyats}`,
-    [surah.name, activeAyatNumber, surah.numberOfAyats]
+    () => `${activeSurah.name} - Ayat ${activeAyatNumber} / ${activeSurah.numberOfAyats}`,
+    [activeSurah.name, activeAyatNumber, activeSurah.numberOfAyats]
   );
 
   const startPlayback = useCallback(() => {
@@ -171,8 +203,8 @@ const useQuranPlayer = () => {
   useEffect(() => { seekToTrackRef.current = seekToTrack; }, [seekToTrack]);
 
   const { setPlaybackState, updateMediaSessionMetadata } = useMediaSession({
-    surahName: surah.name,
-    totalAyats: surah.numberOfAyats,
+    surahName: activeSurah.name,
+    totalAyats: activeSurah.numberOfAyats,
     artistName: appName,
     audioPlayerRef,
     intentToPlayRef,
@@ -217,6 +249,13 @@ const useQuranPlayer = () => {
   // ─── Public handlers ───
   const handlePlay = useCallback(
     ({ activeTrackUrl }: { activeTrackUrl: TrackUrl }) => {
+      if (!activeTrackUrl) {
+        const firstTrack = trackOffsetsRef.current[0];
+        if (firstTrack) {
+          seekToTrack(firstTrack.trackUrl);
+        }
+        return;
+      }
       seekToTrack(activeTrackUrl);
     },
     [seekToTrack]
@@ -251,7 +290,12 @@ const useQuranPlayer = () => {
     setIsPlaying,
     onTrackChanged: () => {
       updateMediaSessionMetadata(activeTrackUrlRef.current);
-      const element = document.getElementById(activeTrackUrlRef.current);
+      const trackUrl = activeTrackUrlRef.current;
+      const escapedTrackUrl =
+        window.CSS && typeof window.CSS.escape === "function"
+          ? window.CSS.escape(trackUrl)
+          : trackUrl.replace(/"/g, '\\"');
+      const element = document.querySelector(`[data-track-url=\"${escapedTrackUrl}\"]`);
       if (element) {
         const scrollTarget = element.previousElementSibling || element;
         scrollTarget.scrollIntoView({ block: "nearest" });
@@ -266,6 +310,86 @@ const useQuranPlayer = () => {
     handleStopAll();
     buildAndAttachAudio(tracksToPlay);
   }, [tracksToPlay, handleStopAll, buildAndAttachAudio]);
+
+  useEffect(() => {
+    if (!isReady || !intentToPlayRef.current || isPlaying) return;
+    startPlayback();
+  }, [isReady, isPlaying, startPlayback]);
+
+
+  const loadSelection = useCallback(
+    ({
+      surahNumber,
+      ayatRange,
+      autoPlay,
+    }: {
+      surahNumber: number;
+      ayatRange: SelectionRange;
+      autoPlay?: boolean;
+    }) => {
+      setSurahNumber(surahNumber);
+      setAyatRange(ayatRange);
+      intentToPlayRef.current = Boolean(autoPlay);
+    },
+    [setAyatRange, setSurahNumber]
+  );
+
+
+  const addCurrentSelectionToBookmarks = useCallback(() => {
+    const newBookmark: Bookmark = {
+      id: createId(),
+      label: getSelectionLabel(surahNumber, ayatRange),
+      surahNumber,
+      ayatRange,
+      createdAt: Date.now(),
+    };
+    setBookmarks((currentBookmarks) => {
+      const exists = currentBookmarks.some(
+        (bookmark) =>
+          bookmark.surahNumber === surahNumber &&
+          bookmark.ayatRange[0] === ayatRange[0] &&
+          bookmark.ayatRange[1] === ayatRange[1]
+      );
+
+      if (exists) {
+        return currentBookmarks;
+      }
+
+      return [newBookmark, ...currentBookmarks];
+    });
+  }, [surahNumber, ayatRange, setBookmarks]);
+
+  const removeBookmark = useCallback(
+    (bookmarkId: string) => {
+      setBookmarks((currentBookmarks) =>
+        currentBookmarks.filter((bookmark) => bookmark.id !== bookmarkId)
+      );
+    },
+    [setBookmarks]
+  );
+
+  const reorderBookmarks = useCallback(
+    (sourceBookmarkId: string, targetBookmarkId: string) => {
+      if (sourceBookmarkId === targetBookmarkId) {
+        return;
+      }
+
+      setBookmarks((currentBookmarks) => {
+        const sourceIndex = currentBookmarks.findIndex((bookmark) => bookmark.id === sourceBookmarkId);
+        const targetIndex = currentBookmarks.findIndex((bookmark) => bookmark.id === targetBookmarkId);
+
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+          return currentBookmarks;
+        }
+
+        const nextBookmarks = [...currentBookmarks];
+        const [movedBookmark] = nextBookmarks.splice(sourceIndex, 1);
+        nextBookmarks.splice(targetIndex, 0, movedBookmark);
+        return nextBookmarks;
+      });
+    },
+    [setBookmarks]
+  );
 
   // Retry audio build on demand
   const retryAudioBuild = useCallback(() => {
@@ -325,11 +449,16 @@ const useQuranPlayer = () => {
     activeAyatNumber,
     qariKey,
     setQariKey,
-    surah,
+    surah: selectedSurah,
     surahNumber,
     setSurahNumber,
     ayatRange,
     setAyatRange,
+    loadSelection,
+    bookmarks,
+    addCurrentSelectionToBookmarks,
+    removeBookmark,
+    reorderBookmarks,
     shouldRepeat,
     setShouldRepeat,
     playbackRate,

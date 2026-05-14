@@ -1,3 +1,17 @@
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,5 +24,23 @@ html {
 body {
   margin: 0;
   padding: 0;
+  font-size: small;
 }
+
+.header-action-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.5rem 0.7rem;
+}
+
+.header-action-btn:hover {
+  background: #f1f5f9;
+}
+
+
 

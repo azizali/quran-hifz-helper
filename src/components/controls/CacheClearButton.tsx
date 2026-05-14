@@ -43,7 +43,7 @@ const CacheClearButton = () => {
   return (
     <button
       onClick={handleClearCache}
-      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs rounded font-semibold"
+      className="header-action-btn"
       title="Clear corrupted audio cache and reload"
     >
       Clear Cache
