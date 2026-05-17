@@ -16,7 +16,7 @@ import type { TrackOffset } from "./quranPlayer/types";
 import { useAudioElementEvents } from "./quranPlayer/useAudioElementEvents";
 import { useMediaSession } from "./quranPlayer/useMediaSession";
 
-const PLAYBACK_RATE_STEP = 0.25;
+const PLAYBACK_RATE_STEP = 0.1;
 const MIN_PLAYBACK_RATE = 1;
 const MAX_PLAYBACK_RATE = 3;
 

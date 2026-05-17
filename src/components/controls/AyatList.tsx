@@ -40,7 +40,7 @@ export const AyatList: React.FC<AyatListProps> = ({
             <div className="flex">
               {isActiveTrack && (
                 <div className="w-full flex items-center gap-2 font-bold text-primary">
-                  Current {trackLabel} (Ayat #{activeAyatNumber})
+                  Current {trackLabel}
                 </div>
               )}
               {isInactiveTrack && (
