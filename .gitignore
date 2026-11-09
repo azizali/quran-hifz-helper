@@ -32,3 +32,15 @@ dist-ssr
 
 # PWA
 dev-dist
+
+# Capacitor native build artifacts (ios/ and android/ project files are committed)
+ios/App/Pods
+ios/App/build
+ios/App/App/public
+android/.gradle
+android/.kotlin
+android/build
+android/app/build
+android/local.properties
+android/app/src/main/assets/public
+android/capacitor-cordova-android-plugins
