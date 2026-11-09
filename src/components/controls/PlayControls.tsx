@@ -1,5 +1,6 @@
 import type { SURAH } from "../../_main/types";
 import AyatRangeSelector from "./AyatRangeSelector";
+import DownloadSurahButton from "./DownloadSurahButton";
 import QariSelector from "./QariSelector";
 import SurahSelector from "./SurahSelector";
 import type { QariKey } from "./qari";
@@ -35,6 +36,9 @@ export const PlayControls: React.FC<PlayerControlsProps> = ({
         setSurahNumber={setSurahNumber}
         setAyatRange={setAyatRange}
       />
+      <div className="flex justify-end">
+        <DownloadSurahButton surahNumber={surahNumber} qariKey={qariKey} />
+      </div>
       <AyatRangeSelector
         ayatRange={ayatRange}
         setAyatRange={setAyatRange}

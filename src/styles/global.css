@@ -27,6 +27,20 @@ body {
   font-size: 14px;
 }
 
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-y {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 .header-action-btn {
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;

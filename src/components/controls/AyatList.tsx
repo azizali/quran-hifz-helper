@@ -14,7 +14,6 @@ interface AyatListProps {
 export const AyatList: React.FC<AyatListProps> = ({
   tracksToPlay,
   activeTrackUrl,
-  activeAyatNumber,
   handleAyatClick,
   isPlaying,
 }) => {

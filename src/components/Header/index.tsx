@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isNativePlatform } from "../../_main/platform";
 import CacheClearButton from "../controls/CacheClearButton";
 
 interface HeaderProps {
@@ -12,7 +13,7 @@ const Header = ({ appName, rightActions }: HeaderProps) => {
       <h1 className="text-2xl">{appName}</h1>
       <div className="shrink-0 flex items-center gap-2">
         {rightActions}
-        <CacheClearButton />
+        {!isNativePlatform() && <CacheClearButton />}
       </div>
     </div>
   );

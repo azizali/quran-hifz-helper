@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { App } from "@capacitor/app";
+import { useEffect, useState } from "react";
 import { appName } from "../_main/config";
+import { isNativePlatform } from "../_main/platform";
 import AyatList from "./controls/AyatList";
 import LibraryPanel from "./controls/LibraryPanel";
+import NativeProgressBar from "./controls/NativeProgressBar";
 import PlayControls from "./controls/PlayControls";
 import PlayerActionBar from "./controls/PlayerActionBar";
 import PreloadProgress from "./controls/PreloadProgress";
@@ -66,8 +69,24 @@ const QuranApp = () => {
   };
   const [showBookmarks, setShowBookmarks] = useState(false);
 
+  // Android back: close the panel, otherwise background the app so a
+  // relaunch doesn't restart the JS layer and stop playback.
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    const handle = App.addListener("backButton", () => {
+      if (showBookmarks) {
+        setShowBookmarks(false);
+      } else {
+        App.minimizeApp();
+      }
+    });
+    return () => {
+      handle.then((h) => h.remove());
+    };
+  }, [showBookmarks]);
+
   return (
-    <div className="flex h-screen mx-auto w-full max-w-md flex-col bg-white">
+    <div className="app-shell flex mx-auto w-full max-w-md flex-col bg-white">
       <Header
         appName={appName}
         rightActions={(
@@ -107,7 +126,7 @@ const QuranApp = () => {
         {showBookmarks && (
           <div className="fixed inset-0 z-50 flex">
             <div className="absolute inset-0 bg-black bg-opacity-30 transition-opacity" onClick={() => setShowBookmarks(false)} />
-            <div className="relative ml-auto w-full max-w-md h-full bg-white shadow-lg animate-slide-in-right">
+            <div className="safe-area-y relative ml-auto w-full max-w-md h-full bg-white shadow-lg animate-slide-in-right">
               <LibraryPanel
                 bookmarks={bookmarks}
                 loadSelection={(args) => {
@@ -139,14 +158,18 @@ const QuranApp = () => {
         </div>
       )}
 
-      <audio
-        ref={audioPlayerRef}
-        className="w-full px-4 pb-2"
-        controls
-        playsInline
-        webkit-playsinline="true"
-        preload="auto"
-      />
+      {isNativePlatform() ? (
+        <NativeProgressBar trackCount={tracksToPlay.length} />
+      ) : (
+        <audio
+          ref={audioPlayerRef}
+          className="w-full px-4 pb-2"
+          controls
+          playsInline
+          webkit-playsinline="true"
+          preload="auto"
+        />
+      )}
 
       <PlayerActionBar
         isPlaying={isPlaying}
