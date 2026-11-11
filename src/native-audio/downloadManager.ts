@@ -5,6 +5,7 @@ import type { TrackObject, TrackUrl } from "../_main/types";
 import type { QariKey } from "../components/controls/qari";
 import { getTracksToPlay } from "../components/utils";
 
+const FETCH_TIMEOUT_MS = 30_000;
 const MANIFEST_PATH = "downloads/manifest.json";
 const AUDIO_DIR = "downloads/audio";
 
@@ -73,6 +74,11 @@ function localFileName(track: TrackObject, qariKey: QariKey): string {
     .padStart(3, "0")}.mp3`;
 }
 
+const allAyahNumbers = (surahNumber: number): number[] => {
+  const surah = surahs[surahNumber - 1];
+  return surah ? Array.from({ length: surah.numberOfAyats }, (_, i) => i + 1) : [];
+};
+
 const fullSurahTracks = (surahNumber: number, qariKey: QariKey) => {
   const surah = surahs[surahNumber - 1];
   return surah ? getTracksToPlay([1, surah.numberOfAyats], surahNumber, qariKey) : [];
@@ -85,54 +91,96 @@ export async function isSurahDownloaded(surahNumber: number, qariKey: QariKey): 
   return tracks.every((track) => Boolean(manifest[track.trackUrl]));
 }
 
-export async function downloadSurah(
+const tracksForAyahs = (surahNumber: number, qariKey: QariKey, ayatNumbers: number[]) =>
+  ayatNumbers.flatMap((ayatNumber) => getTracksToPlay([ayatNumber, ayatNumber], surahNumber, qariKey));
+
+/** Ayat numbers of this surah that are saved on the device for this qari. */
+export async function getDownloadedAyahs(surahNumber: number, qariKey: QariKey): Promise<Set<number>> {
+  const manifest = await readManifest();
+  const saved = new Set<number>();
+  for (const entry of Object.values(manifest)) {
+    if (entry.surahNumber === surahNumber && entry.qariKey === qariKey) saved.add(entry.ayatNumber);
+  }
+  return saved;
+}
+
+/** Average size of the ayat files saved for this surah, or null when none are saved. */
+export async function getAverageAyahBytes(surahNumber: number, qariKey: QariKey): Promise<number | null> {
+  const manifest = await readManifest();
+  const sizes = Object.values(manifest)
+    .filter((entry) => entry.surahNumber === surahNumber && entry.qariKey === qariKey)
+    .map((entry) => entry.bytes);
+  return sizes.length ? sizes.reduce((sum, bytes) => sum + bytes, 0) / sizes.length : null;
+}
+
+export async function downloadAyahs(
   surahNumber: number,
   qariKey: QariKey,
+  ayatNumbers: number[],
   onProgress?: (loaded: number, total: number) => void
 ): Promise<void> {
-  const tracks = fullSurahTracks(surahNumber, qariKey);
+  const tracks = tracksForAyahs(surahNumber, qariKey, ayatNumbers);
   const manifest = await readManifest();
 
   let loaded = 0;
   onProgress?.(loaded, tracks.length);
 
-  for (const track of tracks) {
-    if (!manifest[track.trackUrl]) {
-      const response = await fetch(track.trackUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download ${track.trackUrl}: HTTP ${response.status}`);
+  try {
+    for (const track of tracks) {
+      if (!manifest[track.trackUrl]) {
+        // A stalled connection must end in an error the user can see and retry.
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        let buffer: ArrayBuffer;
+        try {
+          const response = await fetch(track.trackUrl, { signal: controller.signal });
+          if (!response.ok) {
+            throw new Error(`Failed to download ${track.trackUrl}: HTTP ${response.status}`);
+          }
+          buffer = await response.arrayBuffer();
+        } catch (err) {
+          throw controller.signal.aborted
+            ? new Error("the connection timed out")
+            : err;
+        } finally {
+          clearTimeout(timeout);
+        }
+        const fileName = localFileName(track, qariKey);
+
+        await Filesystem.writeFile({
+          path: `${AUDIO_DIR}/${fileName}`,
+          directory: STORAGE_DIRECTORY,
+          data: arrayBufferToBase64(buffer),
+          recursive: true,
+        });
+
+        manifest[track.trackUrl] = {
+          trackUrl: track.trackUrl,
+          surahNumber: track.surahNumber,
+          ayatNumber: track.ayatNumber,
+          qariKey,
+          fileName,
+          bytes: buffer.byteLength,
+          downloadedAt: Date.now(),
+        };
+        await writeManifest(manifest);
       }
-      const buffer = await response.arrayBuffer();
-      const fileName = localFileName(track, qariKey);
 
-      await Filesystem.writeFile({
-        path: `${AUDIO_DIR}/${fileName}`,
-        directory: STORAGE_DIRECTORY,
-        data: arrayBufferToBase64(buffer),
-        recursive: true,
-      });
-
-      manifest[track.trackUrl] = {
-        trackUrl: track.trackUrl,
-        surahNumber: track.surahNumber,
-        ayatNumber: track.ayatNumber,
-        qariKey,
-        fileName,
-        bytes: buffer.byteLength,
-        downloadedAt: Date.now(),
-      };
-      await writeManifest(manifest);
+      loaded++;
+      onProgress?.(loaded, tracks.length);
     }
-
-    loaded++;
-    onProgress?.(loaded, tracks.length);
+  } finally {
+    // Ayat finished before a failure are kept, so tell listeners either way.
+    if (loaded > 0) changeListeners.forEach((listener) => listener("added"));
   }
-
-  changeListeners.forEach((listener) => listener("added"));
 }
 
-export async function deleteSurahDownload(surahNumber: number, qariKey: QariKey): Promise<void> {
-  const tracks = fullSurahTracks(surahNumber, qariKey);
+export async function deleteAyahs(
+  surahNumber: number,
+  qariKey: QariKey,
+  ayatNumbers: number[]
+): Promise<void> {
+  const tracks = tracksForAyahs(surahNumber, qariKey, ayatNumbers);
   const manifest = await readManifest();
 
   for (const track of tracks) {
@@ -150,6 +198,15 @@ export async function deleteSurahDownload(surahNumber: number, qariKey: QariKey)
   await writeManifest(manifest);
   changeListeners.forEach((listener) => listener("removed"));
 }
+
+export const downloadSurah = (
+  surahNumber: number,
+  qariKey: QariKey,
+  onProgress?: (loaded: number, total: number) => void
+) => downloadAyahs(surahNumber, qariKey, allAyahNumbers(surahNumber), onProgress);
+
+export const deleteSurahDownload = (surahNumber: number, qariKey: QariKey) =>
+  deleteAyahs(surahNumber, qariKey, allAyahNumbers(surahNumber));
 
 export async function getDownloadedTrackUrls(): Promise<string[]> {
   return Object.keys(await readManifest());
