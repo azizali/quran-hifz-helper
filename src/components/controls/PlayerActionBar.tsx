@@ -1,5 +1,7 @@
 import { type TrackUrl } from "../../_main/types";
+import type { RepeatSettings } from "../hooks/quranPlayer/repeatSettings";
 import PlaybackSpeedControl from "./PlaybackSpeedControl";
+import { RepeatPill } from "./RepeatControl";
 
 type PlayerActionBarProps = {
   isPlaying: boolean;
@@ -14,6 +16,8 @@ type PlayerActionBarProps = {
   handlePlay: (args: { activeTrackUrl: TrackUrl }) => void;
   handlePause: () => void;
   handleReset: () => void;
+  repeat: RepeatSettings;
+  onOpenRepeat: () => void;
 };
 
 const PlayerActionBar = ({
@@ -29,6 +33,8 @@ const PlayerActionBar = ({
   handlePlay,
   handlePause,
   handleReset,
+  repeat,
+  onOpenRepeat,
 }: PlayerActionBarProps) => {
   return (
     <div className="flex items-center gap-2 p-2 border-t border-slate-200 bg-white">
@@ -39,10 +45,10 @@ const PlayerActionBar = ({
         canIncrease={canIncreasePlaybackRate}
         canDecrease={canDecreasePlaybackRate}
       />
-      <div className="inline-flex shadow-sm flex-1" role="group">
+      <div className="inline-flex min-w-0 flex-1 gap-1" role="group">
         {!isPlaying && (
           <button
-            className="btn bg-primary font-bold text-xl text-white w-full p-3"
+            className="btn min-w-0 flex-1 rounded-lg bg-primary p-2.5 text-lg font-bold text-white"
             onClick={() => handlePlay({ activeTrackUrl })}
           >
             Play
@@ -50,7 +56,7 @@ const PlayerActionBar = ({
         )}
         {isPlaying && (
           <button
-            className="btn bg-primary font-bold text-xl text-white w-full p-3"
+            className="btn min-w-0 flex-1 rounded-lg bg-primary p-2.5 text-lg font-bold text-white"
             onClick={handlePause}
           >
             Pause
@@ -58,13 +64,14 @@ const PlayerActionBar = ({
         )}
         {activeAyatNumber > startingAyatNumber && (
           <button
-            className="btn bg-secondary font-bold text-xl text-white p-3"
+            className="btn rounded-lg bg-secondary p-2.5 text-sm font-bold text-white"
             onClick={handleReset}
           >
             Restart
           </button>
         )}
       </div>
+      <RepeatPill repeat={repeat} onClick={onOpenRepeat} />
     </div>
   );
 };

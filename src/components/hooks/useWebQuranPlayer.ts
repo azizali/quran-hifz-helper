@@ -13,7 +13,8 @@ import { defaultQariKey, type QariKey } from "../controls/qari";
 import { getActiveAyatNumber, getTracksToPlay } from "../utils";
 import { buildConcatenatedAudio } from "./quranPlayer/buildConcatenatedAudio";
 import type { TrackOffset } from "./quranPlayer/types";
-import { useAudioElementEvents } from "./quranPlayer/useAudioElementEvents";
+import { freshRepeatProgress, useAudioElementEvents, type RepeatProgress } from "./quranPlayer/useAudioElementEvents";
+import { useRepeatSettings } from "./quranPlayer/repeatSettings";
 import { useMediaSession } from "./quranPlayer/useMediaSession";
 
 const PLAYBACK_RATE_STEP = 0.1;
@@ -60,11 +61,11 @@ const getSelectionLabel = (
  * - Audio plays as one continuous stream (like a podcast)
  * - Android has no opportunity to kill the audio session
  * - Seeking to a specific ayat = seeking to its time offset
- * - Repeat = seek back to 0 when the concatenated audio ends
+ * - Repeat = seek back to the ayat's start (per-ayat repeat) or to 0 when
+ *   the concatenated audio ends (range repeat)
  *
- * The track list is built WITHOUT shouldRepeat — repeat is handled
- * purely by seeking to 0 on end. This avoids rebuilding audio when
- * the repeat checkbox is toggled.
+ * The track list is built WITHOUT repeat settings — repeats are handled
+ * purely by seeking. This avoids rebuilding audio when they change.
  */
 
 const useQuranPlayer = () => {
@@ -75,13 +76,14 @@ const useQuranPlayer = () => {
   const [surahNumber, setSurahNumber] = useLocalStorage<number>("surahNumber", 1);
   const [ayatRange, setAyatRange] = useLocalStorage<[number, number]>("ayatRange", [1, 1]);
   const [bookmarks, setBookmarks] = useLocalStorage<Bookmark[]>("bookmarks", []);
-  const [shouldRepeat, setShouldRepeat] = useLocalStorage<boolean>("shouldRepeat", true);
+  const { repeat, setEach, setWhole } = useRepeatSettings();
   const [playbackRate, setPlaybackRate] = useLocalStorage<number>("playbackRate", 1);
 
   // Refs for event listeners (avoid stale closures)
   const intentToPlayRef = useRef(false);
   const activeTrackUrlRef = useRef<TrackUrl>("" as TrackUrl);
-  const shouldRepeatRef = useRef(shouldRepeat);
+  const repeatRef = useRef(repeat);
+  const repeatProgressRef = useRef<RepeatProgress>(freshRepeatProgress());
   const trackOffsetsRef = useRef<TrackOffset[]>([]);
   const concatenatedBlobUrlRef = useRef<string>("");
   const isReadyRef = useRef(false);
@@ -94,7 +96,7 @@ const useQuranPlayer = () => {
   }, [ayatRange, surahNumber, qariKey]);
 
   // Keep refs in sync
-  useEffect(() => { shouldRepeatRef.current = shouldRepeat; }, [shouldRepeat]);
+  useEffect(() => { repeatRef.current = repeat; }, [repeat]);
 
   const activeAyatNumber = useMemo(() => getActiveAyatNumber(activeTrackUrl), [activeTrackUrl]);
   const activeTrack = useMemo(
@@ -151,6 +153,7 @@ const useQuranPlayer = () => {
       activeTrackUrlRef.current = firstTrack.trackUrl;
     }
 
+    repeatProgressRef.current = freshRepeatProgress();
     isReadyRef.current = true;
     setIsReady(true);
     setBuildError(null);
@@ -193,6 +196,7 @@ const useQuranPlayer = () => {
     const offset = trackOffsetsRef.current.find(o => o.trackUrl === trackUrl);
     if (offset) {
       audioRef.currentTime = offset.startTime;
+      repeatProgressRef.current = freshRepeatProgress();
       setActiveTrackUrl(trackUrl);
       activeTrackUrlRef.current = trackUrl;
       startPlayback();
@@ -267,6 +271,7 @@ const useQuranPlayer = () => {
     const audioRef = audioPlayerRef.current;
     if (!audioRef || !isReadyRef.current) return;
     audioRef.currentTime = 0;
+    repeatProgressRef.current = freshRepeatProgress();
     if (trackOffsetsRef.current.length > 0) {
       const first = trackOffsetsRef.current[0];
       setActiveTrackUrl(first.trackUrl);
@@ -283,7 +288,8 @@ const useQuranPlayer = () => {
   useAudioElementEvents({
     audioPlayerRef,
     intentToPlayRef,
-    shouldRepeatRef,
+    repeatRef,
+    repeatProgressRef,
     trackOffsetsRef,
     activeTrackUrlRef,
     setActiveTrackUrl,
@@ -459,8 +465,9 @@ const useQuranPlayer = () => {
     addCurrentSelectionToBookmarks,
     removeBookmark,
     reorderBookmarks,
-    shouldRepeat,
-    setShouldRepeat,
+    repeat,
+    setEach,
+    setWhole,
     playbackRate,
     onIncreasePlaybackRate,
     onDecreasePlaybackRate,

@@ -11,6 +11,9 @@ const formatRate = (rate: number) => {
   return fixedRate.endsWith(".00") ? fixedRate.slice(0, -3) : fixedRate;
 };
 
+const stepButton =
+  "h-8 w-6 bg-slate-50 text-base leading-none text-slate-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40";
+
 const PlaybackSpeedControl = ({
   playbackRate,
   onDecrease,
@@ -19,27 +22,18 @@ const PlaybackSpeedControl = ({
   canIncrease,
 }: PlaybackSpeedControlProps) => {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-2 py-1">
-      <span className="text-xs font-semibold text-slate-600">Speed</span>
-      <button
-        type="button"
-        className="h-7 w-7 rounded border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={onDecrease}
-        disabled={!canDecrease}
-        aria-label="Decrease playback speed"
-      >
-        -
+    <div
+      className="flex shrink-0 items-center overflow-hidden rounded-lg border border-slate-200"
+      role="group"
+      aria-label="Playback speed"
+    >
+      <button type="button" className={stepButton} onClick={onDecrease} disabled={!canDecrease} aria-label="Decrease playback speed">
+        −
       </button>
-      <div className="min-w-12 text-center text-sm font-semibold text-slate-700">
-        {formatRate(playbackRate)}x
+      <div className="w-9 text-center text-xs font-semibold tabular-nums text-slate-700" aria-live="polite">
+        {formatRate(playbackRate)}×
       </div>
-      <button
-        type="button"
-        className="h-7 w-7 rounded border border-slate-300 bg-white text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={onIncrease}
-        disabled={!canIncrease}
-        aria-label="Increase playback speed"
-      >
+      <button type="button" className={stepButton} onClick={onIncrease} disabled={!canIncrease} aria-label="Increase playback speed">
         +
       </button>
     </div>

@@ -8,7 +8,7 @@ import NativeProgressBar from "./controls/NativeProgressBar";
 import PlayControls from "./controls/PlayControls";
 import PlayerActionBar from "./controls/PlayerActionBar";
 import PreloadProgress from "./controls/PreloadProgress";
-import RepeatControl from "./controls/RepeatControl";
+import { RepeatSheet } from "./controls/RepeatControl";
 import Header from "./Header";
 import useQuranPlayer from "./hooks/useQuranPlayer";
 
@@ -29,8 +29,9 @@ const QuranApp = () => {
     addCurrentSelectionToBookmarks,
     removeBookmark,
     reorderBookmarks,
-    shouldRepeat,
-    setShouldRepeat,
+    repeat,
+    setEach,
+    setWhole,
     tracksToPlay,
     audioPlayerRef,
     preloadProgress,
@@ -68,13 +69,16 @@ const QuranApp = () => {
     }
   };
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [showRepeat, setShowRepeat] = useState(false);
 
   // Android back: close the panel, otherwise background the app so a
   // relaunch doesn't restart the JS layer and stop playback.
   useEffect(() => {
     if (!isNativePlatform()) return;
     const handle = App.addListener("backButton", () => {
-      if (showBookmarks) {
+      if (showRepeat) {
+        setShowRepeat(false);
+      } else if (showBookmarks) {
         setShowBookmarks(false);
       } else {
         App.minimizeApp();
@@ -83,7 +87,7 @@ const QuranApp = () => {
     return () => {
       handle.then((h) => h.remove());
     };
-  }, [showBookmarks]);
+  }, [showBookmarks, showRepeat]);
 
   return (
     <div className="app-shell flex mx-auto w-full max-w-md flex-col bg-white">
@@ -117,11 +121,6 @@ const QuranApp = () => {
           activeAyatNumber={activeAyatNumber}
           handleAyatClick={handleAyatClick}
           isPlaying={isPlaying}
-        />
-        <RepeatControl
-          shouldRepeat={shouldRepeat}
-          setShouldRepeat={setShouldRepeat}
-          activeAyatNumber={activeAyatNumber}
         />
         {showBookmarks && (
           <div className="fixed inset-0 z-50 flex">
@@ -184,6 +183,15 @@ const QuranApp = () => {
         handlePlay={handlePlay}
         handlePause={handlePause}
         handleReset={handleReset}
+        repeat={repeat}
+        onOpenRepeat={() => setShowRepeat(true)}
+      />
+      <RepeatSheet
+        repeat={repeat}
+        setEach={setEach}
+        setWhole={setWhole}
+        open={showRepeat}
+        onOpenChange={setShowRepeat}
       />
     </div>
   );
