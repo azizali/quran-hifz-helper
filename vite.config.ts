@@ -60,6 +60,16 @@ export default defineConfig({
             },
           },
           {
+            urlPattern: /\/quran-text\/\d+\.json$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'quran-text-cache',
+              expiration: {
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 Year
+              },
+            },
+          },
+          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif)$/,
             handler: 'CacheFirst',
             options: {

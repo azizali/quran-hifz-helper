@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import Player from './components/Player.tsx'
+import '@fontsource/amiri/arabic-400.css'
 import './styles/global.css'
 import './pwa.ts'
 
