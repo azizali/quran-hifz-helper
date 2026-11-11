@@ -28,6 +28,6 @@ const qaris: Qaris = {
   },
 };
 
-export const defaultQariKey = "husary" as QariKey;
+export const defaultQariKey = "mishary" as QariKey;
 
 export default qaris;

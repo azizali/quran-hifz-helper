@@ -1,6 +1,6 @@
 import type { SURAH } from "../../_main/types";
+import type { ReactNode } from "react";
 import AyatRangeSelector from "./AyatRangeSelector";
-import DownloadSurahButton from "./DownloadSurahButton";
 import QariSelector from "./QariSelector";
 import SurahSelector from "./SurahSelector";
 import type { QariKey } from "./qari";
@@ -15,6 +15,9 @@ interface PlayerControlsProps {
   surah: SURAH;
   toggleCurrentSelectionBookmark: () => void;
   isBookmarked: boolean;
+  rangeActions?: ReactNode;
+  /** Rendered between the surah and the ayah range, e.g. the offline status. */
+  offlineStatus?: ReactNode;
 }
 
 export const PlayControls: React.FC<PlayerControlsProps> = ({
@@ -27,6 +30,8 @@ export const PlayControls: React.FC<PlayerControlsProps> = ({
   surah,
   toggleCurrentSelectionBookmark,
   isBookmarked,
+  rangeActions,
+  offlineStatus,
 }) => {
   return (
     <>
@@ -36,15 +41,14 @@ export const PlayControls: React.FC<PlayerControlsProps> = ({
         setSurahNumber={setSurahNumber}
         setAyatRange={setAyatRange}
       />
-      <div className="flex justify-end">
-        <DownloadSurahButton surahNumber={surahNumber} qariKey={qariKey} />
-      </div>
+      {offlineStatus}
       <AyatRangeSelector
         ayatRange={ayatRange}
         setAyatRange={setAyatRange}
         surah={surah}
         toggleCurrentSelectionBookmark={toggleCurrentSelectionBookmark}
         isBookmarked={isBookmarked}
+        actions={rangeActions}
       />
     </>
   );

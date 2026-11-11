@@ -2,7 +2,10 @@ import { App } from "@capacitor/app";
 import { useEffect, useState } from "react";
 import { appName } from "../_main/config";
 import { isNativePlatform } from "../_main/platform";
+import { useLocalStorage } from "usehooks-ts";
 import AyatList from "./controls/AyatList";
+import { ListToggleButtons, MemorizationSummary } from "./controls/AyatListToolbar";
+import OfflineStatus from "./controls/OfflineStatus";
 import LibraryPanel from "./controls/LibraryPanel";
 import NativeProgressBar from "./controls/NativeProgressBar";
 import PlayControls from "./controls/PlayControls";
@@ -11,6 +14,7 @@ import PreloadProgress from "./controls/PreloadProgress";
 import { RepeatSheet } from "./controls/RepeatControl";
 import Header from "./Header";
 import useQuranPlayer from "./hooks/useQuranPlayer";
+import { useMemorization } from "./hooks/useMemorization";
 
 const QuranApp = () => {
   const {
@@ -48,6 +52,13 @@ const QuranApp = () => {
     handleAyatClick,
   } = useQuranPlayer();
 
+  const [hideText, setHideText] = useLocalStorage<boolean>("hideText", false);
+  const [trackMemorization, setTrackMemorization] = useLocalStorage<boolean>("trackMemorization", false);
+  const { statuses, cycle: cycleStatus, counts: memorizationCounts } = useMemorization(
+    surahNumber,
+    surah.numberOfAyats
+  );
+
   const startingAyatNumber = tracksToPlay[0]?.ayatNumber ?? ayatRange[0];
   
   const findCurrentBookmark = () =>
@@ -70,13 +81,16 @@ const QuranApp = () => {
   };
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showRepeat, setShowRepeat] = useState(false);
+  const [showDownloads, setShowDownloads] = useState(false);
 
   // Android back: close the panel, otherwise background the app so a
   // relaunch doesn't restart the JS layer and stop playback.
   useEffect(() => {
     if (!isNativePlatform()) return;
     const handle = App.addListener("backButton", () => {
-      if (showRepeat) {
+      if (showDownloads) {
+        setShowDownloads(false);
+      } else if (showRepeat) {
         setShowRepeat(false);
       } else if (showBookmarks) {
         setShowBookmarks(false);
@@ -87,10 +101,10 @@ const QuranApp = () => {
     return () => {
       handle.then((h) => h.remove());
     };
-  }, [showBookmarks, showRepeat]);
+  }, [showBookmarks, showRepeat, showDownloads]);
 
   return (
-    <div className="app-shell flex mx-auto w-full max-w-md flex-col bg-white">
+    <div className="app-shell flex mx-auto w-full max-w-md md:max-w-4xl xl:max-w-6xl flex-col bg-white md:shadow-sm">
       <Header
         appName={appName}
         rightActions={(
@@ -103,25 +117,57 @@ const QuranApp = () => {
           </button>
         )}
       />
-      <div className="p-4 flex-grow overflow-hidden flex gap-2 flex-col">
-        <PlayControls
-          qariKey={qariKey}
-          setQariKey={setQariKey}
-          ayatRange={ayatRange}
-          setAyatRange={setAyatRange}
-          surah={surah}
-          surahNumber={surahNumber}
-          setSurahNumber={setSurahNumber}
-          toggleCurrentSelectionBookmark={toggleCurrentSelectionBookmark}
-          isBookmarked={isBookmarked}
-        />
-        <AyatList
-          tracksToPlay={tracksToPlay}
-          activeTrackUrl={activeTrackUrl}
-          activeAyatNumber={activeAyatNumber}
-          handleAyatClick={handleAyatClick}
-          isPlaying={isPlaying}
-        />
+      <div className="p-4 flex-grow min-h-0 overflow-hidden flex gap-2 flex-col md:flex-row md:gap-6">
+        <div className="flex flex-col gap-2 md:w-72 md:shrink-0 md:overflow-y-auto">
+          <PlayControls
+            qariKey={qariKey}
+            setQariKey={setQariKey}
+            ayatRange={ayatRange}
+            setAyatRange={setAyatRange}
+            surah={surah}
+            surahNumber={surahNumber}
+            setSurahNumber={setSurahNumber}
+            toggleCurrentSelectionBookmark={toggleCurrentSelectionBookmark}
+            isBookmarked={isBookmarked}
+            rangeActions={
+              <ListToggleButtons
+                hideText={hideText}
+                onToggleHideText={() => setHideText((v) => !v)}
+                trackMemorization={trackMemorization}
+                onToggleTracking={() => setTrackMemorization((v) => !v)}
+              />
+            }
+            offlineStatus={
+              <OfflineStatus
+                surah={surah}
+                qariKey={qariKey}
+                ayatRange={ayatRange}
+                open={showDownloads}
+                onOpenChange={setShowDownloads}
+              />
+            }
+          />
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+          {trackMemorization && (
+            <MemorizationSummary
+              numberOfAyats={surah.numberOfAyats}
+              statuses={statuses}
+              counts={memorizationCounts}
+            />
+          )}
+          <AyatList
+            hideText={hideText}
+            trackMemorization={trackMemorization}
+            statuses={statuses}
+            onCycleStatus={cycleStatus}
+            tracksToPlay={tracksToPlay}
+            activeTrackUrl={activeTrackUrl}
+            activeAyatNumber={activeAyatNumber}
+            handleAyatClick={handleAyatClick}
+            isPlaying={isPlaying}
+          />
+        </div>
         {showBookmarks && (
           <div className="fixed inset-0 z-50 flex">
             <div className="absolute inset-0 bg-black bg-opacity-30 transition-opacity" onClick={() => setShowBookmarks(false)} />

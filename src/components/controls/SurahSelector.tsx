@@ -12,9 +12,9 @@ export const SurahSelector: React.FC<SurahSelectorProps> = ({
   setAyatRange,
 }) => {
   return (
-    <SelectField label="Surah" htmlFor="surah">
+    <SelectField label="Surah" htmlFor="surah" hideLabel>
       <select
-        className="border rounded p-2 w-full"
+        className="border rounded p-2 w-full h-11 text-base font-semibold"
         name="surah"
         id="surah"
         value={surahNumber}

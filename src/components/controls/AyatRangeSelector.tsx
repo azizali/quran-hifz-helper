@@ -1,6 +1,6 @@
+import type { ReactNode } from "react";
 import type { SURAH } from "../../_main/types";
 import BookmarkIcon from "../icons/BookmarkIcon";
-import SelectField from "./SelectField";
 
 interface AyatRangeSelectorProps {
   ayatRange: [number, number];
@@ -8,6 +8,8 @@ interface AyatRangeSelectorProps {
   surah: SURAH;
   toggleCurrentSelectionBookmark: () => void;
   isBookmarked: boolean;
+  /** Extra icon buttons shown after the bookmark button. */
+  actions?: ReactNode;
 }
 
 const handleAyatChange = (currentStart: number, currentEnd: number, newValue: number, isStart: boolean) => {
@@ -17,15 +19,7 @@ const handleAyatChange = (currentStart: number, currentEnd: number, newValue: nu
   return newValue < currentStart ? [newValue, newValue] : [currentStart, newValue];
 };
 
-const getBookmarkButtonClass = (isBookmarked: boolean) =>
-  isBookmarked
-    ? "relative inline-flex h-10 w-10 items-center justify-center rounded border border-orange-500 bg-orange-500 text-white transition-colors hover:bg-orange-600"
-    : "relative inline-flex h-10 w-10 items-center justify-center rounded border bg-white text-slate-600 transition-colors hover:bg-slate-50";
-
-const getBookmarkBadgeClass = (isBookmarked: boolean) =>
-  isBookmarked
-    ? "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-700 text-[10px] font-bold leading-none text-white"
-    : "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-700 text-[10px] font-bold leading-none text-white";
+const selectClass = "h-10 rounded border bg-white px-2 text-base tabular-nums";
 
 export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
   ayatRange,
@@ -33,6 +27,7 @@ export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
   surah,
   toggleCurrentSelectionBookmark,
   isBookmarked,
+  actions,
 }) => {
   const [startingAyatNumber, endingAyatNumber] = ayatRange;
 
@@ -47,60 +42,58 @@ export const AyatRangeSelector: React.FC<AyatRangeSelectorProps> = ({
   };
 
   return (
-    <>
-      <div className="flex items-end gap-2 flex-wrap">
-        <SelectField label="Starting" htmlFor="startingAyatNumber">
-          <select
-            className="border rounded p-2 h-10"
-            name="startingAyatNumber"
-            id="startingAyatNumber"
-            value={startingAyatNumber}
-            onChange={(e) => handleStartingChange(parseInt(e.target.value))}
-          >
-            {Array.from({ length: surah.numberOfAyats }).map((_, index) => (
-              <option key={index + 1} value={index + 1}>
-                {index + 1}
-              </option>
-            ))}
-          </select>
-        </SelectField>
-        <SelectField label="Ending" htmlFor="endingAyatNumber">
-          <select
-            className="border rounded p-2 h-10"
-            name="endingAyatNumber"
-            id="endingAyatNumber"
-            value={endingAyatNumber}
-            onChange={(e) => handleEndingChange(parseInt(e.target.value))}
-          >
-            {Array.from({
-              length: surah.numberOfAyats - startingAyatNumber + 1,
-            }).map((_, index) => {
-              const ayatNumber = startingAyatNumber + index;
-              return (
-                <option key={ayatNumber} value={ayatNumber}>
-                  {ayatNumber}
-                </option>
-              );
-            })}
-          </select>
-        </SelectField>
+    <div className="flex items-center gap-1.5">
+      <span className="text-sm text-slate-500">Ayahs</span>
+      <select
+        className={selectClass}
+        name="startingAyatNumber"
+        id="startingAyatNumber"
+        aria-label="Starting ayah"
+        value={startingAyatNumber}
+        onChange={(e) => handleStartingChange(parseInt(e.target.value))}
+      >
+        {Array.from({ length: surah.numberOfAyats }).map((_, index) => (
+          <option key={index + 1} value={index + 1}>
+            {index + 1}
+          </option>
+        ))}
+      </select>
+      <span className="text-slate-400" aria-hidden="true">–</span>
+      <select
+        className={selectClass}
+        name="endingAyatNumber"
+        id="endingAyatNumber"
+        aria-label="Ending ayah"
+        value={endingAyatNumber}
+        onChange={(e) => handleEndingChange(parseInt(e.target.value))}
+      >
+        {Array.from({ length: surah.numberOfAyats - startingAyatNumber + 1 }).map((_, index) => {
+          const ayatNumber = startingAyatNumber + index;
+          return (
+            <option key={ayatNumber} value={ayatNumber}>
+              {ayatNumber}
+            </option>
+          );
+        })}
+      </select>
+      <div className="ml-auto flex shrink-0 gap-1">
         <button
-          className={getBookmarkButtonClass(isBookmarked)}
+          type="button"
+          className={`relative grid h-9 w-9 place-items-center rounded-lg border ${
+            isBookmarked
+              ? "border-orange-500 bg-orange-500 text-white"
+              : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-50"
+          }`}
           onClick={toggleCurrentSelectionBookmark}
-          aria-label={isBookmarked ? "Remove current selection bookmark" : "Add current selection to bookmark"}
-          title={isBookmarked ? "Click to remove bookmark" : "Click to add bookmark"}
+          aria-pressed={isBookmarked}
+          aria-label={isBookmarked ? "Remove bookmark for this range" : "Bookmark this range"}
+          title={isBookmarked ? "Remove bookmark" : "Bookmark this range"}
         >
-          <BookmarkIcon
-            width={16}
-            height={16}
-            className={isBookmarked ? "text-white" : "text-slate-600"}
-          />
-          <span className={getBookmarkBadgeClass(isBookmarked)} aria-hidden="true">
-            {isBookmarked ? "−" : "+"}
-          </span>
+          <BookmarkIcon width={18} height={18} className={isBookmarked ? "text-white" : "text-slate-500"} />
         </button>
+        {actions}
       </div>
-    </>
+    </div>
   );
 };
 
