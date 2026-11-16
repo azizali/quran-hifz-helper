@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import BookmarkIcon from "../icons/BookmarkIcon";
+import ChevronDownIcon from "../icons/ChevronDownIcon";
 
 export type PlayerMode = "listen" | "memorize";
 
@@ -20,15 +20,47 @@ type RangeBarProps = {
   };
 };
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const selectClass =
+  "h-11 w-24 appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-7 text-lg font-bold tabular-nums text-slate-900 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400";
 
-const numberInputClass =
-  "h-11 w-20 rounded-lg border border-slate-300 bg-white px-2 text-center text-lg font-bold tabular-nums text-slate-900 focus:border-primary disabled:bg-slate-50";
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+type AyahSelectProps = {
+  id: string;
+  label: string;
+  value: number | "";
+  options: number[];
+  disabled?: boolean;
+  onChange: (value: number) => void;
+};
+
+/** Native select: one tap opens the system picker, which scrolls well even with 286 ayat. */
+const AyahSelect = ({ id, label, value, options, disabled, onChange }: AyahSelectProps) => (
+  <label className="flex flex-col gap-1" htmlFor={id}>
+    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+    <span className="relative flex items-center">
+      <select
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(parseInt(e.target.value, 10))}
+        className={selectClass}
+      >
+        {value === "" && <option value="">–</option>}
+        {options.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2 text-slate-400" />
+    </span>
+  </label>
+);
 
 /**
- * The range is typed in From and To, or picked by tapping numbers in the list.
- * Values commit on blur or Enter, so typing "2" on the way to "205" does not
- * rebuild the audio.
+ * The range is picked from the From and To dropdowns, or by tapping ayah
+ * numbers in the list. To only offers ayat from the start onward.
  */
 export const RangeBar = ({
   ayatRange,
@@ -42,30 +74,6 @@ export const RangeBar = ({
   memorization,
 }: RangeBarProps) => {
   const [start, end] = ayatRange;
-  const [fromDraft, setFromDraft] = useState(String(start));
-  const [toDraft, setToDraft] = useState(String(end));
-
-  useEffect(() => {
-    setFromDraft(String(start));
-    setToDraft(String(end));
-  }, [start, end]);
-
-  const commit = (edited: "from" | "to") => {
-    let from = clamp(parseInt(fromDraft, 10) || start, 1, numberOfAyats);
-    let to = clamp(parseInt(toDraft, 10) || end, 1, numberOfAyats);
-    if (from > to) {
-      if (edited === "from") to = from;
-      else from = to;
-    }
-    setFromDraft(String(from));
-    setToDraft(String(to));
-    if (from !== start || to !== end) onRangeChange([from, to]);
-  };
-
-  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") event.currentTarget.blur();
-  };
-
   const picking = pendingStart !== null;
   const count = end - start + 1;
   const isWholeSurah = start === 1 && end === numberOfAyats;
@@ -74,42 +82,26 @@ export const RangeBar = ({
     <div className="shrink-0 border-b border-slate-200 bg-white px-3 pt-2 pb-2">
       <div className="flex items-end justify-between gap-3">
         <div className="flex items-end gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</span>
-            <input
-              id="range-from"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={numberOfAyats}
-              value={picking ? String(pendingStart) : fromDraft}
-              disabled={picking}
-              onChange={(e) => setFromDraft(e.target.value)}
-              onBlur={() => commit("from")}
-              onKeyDown={onKeyDown}
-              className={numberInputClass}
-            />
-          </label>
+          <AyahSelect
+            id="range-from"
+            label="From"
+            value={picking ? pendingStart : start}
+            options={range(1, numberOfAyats)}
+            disabled={picking}
+            // A start after the current end moves the end with it.
+            onChange={(from) => onRangeChange([from, Math.max(from, end)])}
+          />
           <span className="pb-2.5 text-slate-400" aria-hidden="true">
             –
           </span>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">To</span>
-            <input
-              id="range-to"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={numberOfAyats}
-              value={picking ? "" : toDraft}
-              placeholder={picking ? "tap" : undefined}
-              disabled={picking}
-              onChange={(e) => setToDraft(e.target.value)}
-              onBlur={() => commit("to")}
-              onKeyDown={onKeyDown}
-              className={numberInputClass}
-            />
-          </label>
+          <AyahSelect
+            id="range-to"
+            label="To"
+            value={picking ? "" : end}
+            options={range(start, numberOfAyats)}
+            disabled={picking}
+            onChange={(to) => onRangeChange([start, to])}
+          />
         </div>
         <button
           type="button"
