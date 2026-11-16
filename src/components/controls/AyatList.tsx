@@ -75,7 +75,7 @@ export const AyatList: React.FC<AyatListProps> = ({
   }, [start, surahNumber, surahText]);
 
   return (
-    <ol ref={listRef} data-ayat-list className="min-h-0 flex-1 overflow-y-auto" aria-label="Ayat">
+    <ol ref={listRef} data-ayat-list className="player-list min-h-0 flex-1 overflow-y-auto" aria-label="Ayat">
       {Array.from({ length: numberOfAyats }, (_, index) => {
         const n = index + 1;
         const inRange = n >= start && n <= end;

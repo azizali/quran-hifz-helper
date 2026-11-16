@@ -1,5 +1,5 @@
 import { type TrackUrl } from "../../_main/types";
-import { REPEAT_FOREVER, type RepeatSettings } from "../hooks/quranPlayer/repeatSettings";
+import { describeProgress, type RepeatSettings } from "../hooks/quranPlayer/repeatSettings";
 import type { RepeatCounters } from "../hooks/quranPlayer/useAudioElementEvents";
 import PlaybackSpeedControl from "./PlaybackSpeedControl";
 import { RepeatPill } from "./RepeatControl";
@@ -20,16 +20,6 @@ type PlayerActionBarProps = {
   repeat: RepeatSettings;
   repeatCounters: RepeatCounters;
   onOpenRepeat: () => void;
-};
-
-/** "Ayah 214 · play 2 of 3 · pass 4 of 10". Repeat parts appear only when repeats are on. */
-const describeProgress = (ayat: number, repeat: RepeatSettings, counters: RepeatCounters) => {
-  const parts = [`Ayah ${ayat}`];
-  if (repeat.each > 1) parts.push(`play ${counters.ayatPlay} of ${repeat.each}`);
-  if (repeat.whole !== 1) {
-    parts.push(`pass ${counters.rangePass} of ${repeat.whole === REPEAT_FOREVER ? "∞" : repeat.whole}`);
-  }
-  return parts.join(" · ");
 };
 
 const PlayerActionBar = ({
@@ -58,7 +48,7 @@ const PlayerActionBar = ({
           {describeProgress(activeAyatNumber, repeat, repeatCounters)}
         </div>
       )}
-      <div className="flex items-center gap-2">
+      <div className="player-actions flex items-center gap-2">
         <PlaybackSpeedControl
           playbackRate={playbackRate}
           onIncrease={onIncreasePlaybackRate}
@@ -66,7 +56,7 @@ const PlayerActionBar = ({
           canIncrease={canIncreasePlaybackRate}
           canDecrease={canDecreasePlaybackRate}
         />
-        <div className="inline-flex min-w-0 flex-1 gap-1" role="group">
+        <div className="player-play inline-flex min-w-0 flex-1 gap-1" role="group">
           <button
             type="button"
             className="min-h-11 min-w-0 flex-1 rounded-lg bg-primary px-3 text-lg font-bold text-white"

@@ -1,8 +1,12 @@
 import { App } from "@capacitor/app";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { isNativePlatform } from "../_main/platform";
 import AyatList from "./controls/AyatList";
+import ControlsRail from "./controls/ControlsRail";
+import { describeProgress, describeRepeat } from "./hooks/quranPlayer/repeatSettings";
+import { ChevronLeftIcon } from "./icons/ControlIcons";
+import { scrollTrackIntoView } from "./utils";
 import LeaveRangeSheet from "./controls/LeaveRangeSheet";
 import LibraryPanel from "./controls/LibraryPanel";
 import NativeProgressBar from "./controls/NativeProgressBar";
@@ -62,6 +66,19 @@ const QuranApp = () => {
   } = useQuranPlayer();
 
   const [mode, setMode] = useLocalStorage<PlayerMode>("playerMode", "listen");
+  // Landscape only: the controls drawer can slide away, leaving an icon rail.
+  const [controlsHidden, setControlsHidden] = useLocalStorage<boolean>("controlsHidden", false);
+
+  // Hiding or showing the drawer changes the list's width, so the text reflows and
+  // the scroll offset no longer matches. Bring the current ayah back once the slide ends.
+  const activeTrackUrlRef = useRef(activeTrackUrl);
+  activeTrackUrlRef.current = activeTrackUrl;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (activeTrackUrlRef.current) scrollTrackIntoView(activeTrackUrlRef.current);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [controlsHidden]);
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [pendingStart, setPendingStart] = useState<number | null>(null);
   const { statuses, cycle: cycleStatus, counts: memorizationCounts } = useMemorization(
@@ -156,9 +173,27 @@ const QuranApp = () => {
   }, [showBookmarks, showRepeat, showDownloads, pendingStart, leaveRangeFor]);
 
   return (
-    <div className="app-shell flex mx-auto w-full max-w-md md:max-w-4xl xl:max-w-6xl flex-col bg-white md:shadow-sm">
+    <div
+      className="app-shell player-shell mx-auto w-full max-w-md md:max-w-4xl xl:max-w-6xl bg-white md:shadow-sm"
+      data-controls={controlsHidden ? "hidden" : "shown"}
+    >
+      <div className="player-controls shrink-0">
       <div className="shrink-0 border-b border-slate-200 px-3 pt-2 pb-1">
-        <QariSelector qariKey={qariKey} setQariKey={setQariKey} />
+        <div className="flex items-center gap-1">
+          <div className="min-w-0 flex-1">
+            <QariSelector qariKey={qariKey} setQariKey={setQariKey} />
+          </div>
+          {/* Shown in landscape only (see .hide-controls-button in global.css). */}
+          <button
+            type="button"
+            onClick={() => setControlsHidden(true)}
+            aria-label="Hide controls"
+            className="hide-controls-button min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-primary"
+          >
+            <ChevronLeftIcon />
+            <span>Hide</span>
+          </button>
+        </div>
         <div className="mt-1 flex items-center gap-1">
           <SurahSelector
             surahNumber={surahNumber}
@@ -199,6 +234,7 @@ const QuranApp = () => {
             : undefined
         }
       />
+      </div>
 
       <AyatList
         surahNumber={surahNumber}
@@ -216,6 +252,20 @@ const QuranApp = () => {
         onPickNumber={pickNumber}
         onPlayOutsideRange={setLeaveRangeFor}
       />
+      {controlsHidden && (
+        <ControlsRail
+          isPlaying={isPlaying}
+          onPlay={() => handlePlay({ activeTrackUrl })}
+          onPause={handlePause}
+          onRestart={handleReset}
+          onOpenRepeat={() => setShowRepeat(true)}
+          onShowControls={() => setControlsHidden(false)}
+          startingAyatNumber={startingAyatNumber}
+          activeAyatNumber={activeAyatNumber}
+          progressLabel={describeProgress(activeAyatNumber, repeat, repeatCounters)}
+          repeatLabel={describeRepeat(repeat)}
+        />
+      )}
       <LeaveRangeSheet
         ayatNumber={leaveRangeFor}
         ayatRange={ayatRange}
@@ -246,6 +296,7 @@ const QuranApp = () => {
         </div>
       )}
 
+      <div className="player-bottom shrink-0">
       <PreloadProgress loaded={preloadProgress.loaded} total={preloadProgress.total} />
 
       {buildError && (
@@ -290,6 +341,7 @@ const QuranApp = () => {
         repeatCounters={repeatCounters}
         onOpenRepeat={() => setShowRepeat(true)}
       />
+      </div>
       <RepeatSheet
         repeat={repeat}
         setEach={setEach}

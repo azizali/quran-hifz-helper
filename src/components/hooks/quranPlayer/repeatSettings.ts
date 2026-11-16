@@ -1,5 +1,6 @@
 import { useLocalStorage } from "usehooks-ts";
 import type { TrackObject } from "../../../_main/types";
+import type { RepeatCounters } from "./useAudioElementEvents";
 
 export const MAX_REPEAT = 20;
 /** `whole` value meaning "loop the range until stopped". */
@@ -52,6 +53,16 @@ export function describeRepeat({ each, whole }: RepeatSettings): string {
   if (each > 1) parts.push(`${each}× each`);
   if (whole === REPEAT_FOREVER) parts.push("loop");
   else if (whole > 1) parts.push(`${whole}× range`);
+  return parts.join(" · ");
+}
+
+/** "Ayah 214 · play 2 of 3 · pass 4 of 10". Repeat parts appear only when repeats are on. */
+export function describeProgress(ayat: number, repeat: RepeatSettings, counters: RepeatCounters): string {
+  const parts = [`Ayah ${ayat}`];
+  if (repeat.each > 1) parts.push(`play ${counters.ayatPlay} of ${repeat.each}`);
+  if (repeat.whole !== 1) {
+    parts.push(`pass ${counters.rangePass} of ${repeat.whole === REPEAT_FOREVER ? "∞" : repeat.whole}`);
+  }
   return parts.join(" · ");
 }
 
