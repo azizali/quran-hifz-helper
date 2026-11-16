@@ -1,33 +1,30 @@
+import ChevronDownIcon from "../icons/ChevronDownIcon";
 import qaris, { type QariKey } from "./qari";
-import SelectField from "./SelectField";
 
 interface QariSelectorProps {
   qariKey: QariKey;
   setQariKey: React.Dispatch<React.SetStateAction<QariKey>>;
 }
 
-export const QariSelector: React.FC<QariSelectorProps> = ({
-  qariKey,
-  setQariKey
-}) => {
-  return (
-    <SelectField label="Qari" htmlFor="qari" hideLabel>
-      <select
-        className="border rounded p-2 w-full h-10 text-sm text-slate-600"
-        name="qari"
-        id="qari"
-        value={qariKey}
-        size={1}
-        onChange={(e) => setQariKey(e.target.value as QariKey)}
-      >
-        {Object.keys(qaris).map((qariKey) => (
-          <option key={qariKey} value={qariKey}>
-            {qaris[qariKey as QariKey].name}
-          </option>
-        ))}
-      </select>
-    </SelectField>
-  );
-};
+/** Full-width native select: one tap opens the system picker. */
+export const QariSelector: React.FC<QariSelectorProps> = ({ qariKey, setQariKey }) => (
+  <label className="relative flex min-h-11 items-center">
+    <span className="sr-only">Qari</span>
+    <select
+      className="h-11 w-full min-w-0 appearance-none truncate rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-base text-slate-700"
+      name="qari"
+      id="qari"
+      value={qariKey}
+      onChange={(e) => setQariKey(e.target.value as QariKey)}
+    >
+      {Object.keys(qaris).map((key) => (
+        <option key={key} value={key}>
+          {qaris[key as QariKey].name}
+        </option>
+      ))}
+    </select>
+    <ChevronDownIcon className="pointer-events-none absolute right-3 text-slate-500" />
+  </label>
+);
 
 export default QariSelector;

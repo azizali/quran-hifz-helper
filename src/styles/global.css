@@ -61,12 +61,19 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Sized for reading a long list: 20px on phones, 22px from tablet width up. */
 .ayat-arabic {
   font-family: "Amiri", "Geeza Pro", "Traditional Arabic", serif;
-  font-size: 1.5rem;
-  line-height: 1.8;
+  font-size: 1.25rem;
+  line-height: 1.85;
   direction: rtl;
   text-align: right;
+}
+
+@media (min-width: 768px) {
+  .ayat-arabic {
+    font-size: 1.375rem;
+  }
 }
 
 .header-action-btn {
