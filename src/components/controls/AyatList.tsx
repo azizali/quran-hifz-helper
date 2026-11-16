@@ -1,144 +1,187 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { TrackObject, TrackUrl } from "../../_main/types";
+import { nextStatusLabel, statusLabel, type MemorizationStatus } from "../hooks/useMemorization";
 import { useSurahText } from "../hooks/useSurahText";
-import type { MemorizationStatus } from "../hooks/useMemorization";
-import SaveIcon from "../icons/SaveIcon";
-import { useCachedAssets } from "../useCachedAssets";
+import type { PlayerMode } from "./RangeBar";
 
 interface AyatListProps {
+  surahNumber: number;
+  numberOfAyats: number;
+  ayatRange: [number, number];
+  /** Tracks of the selected range, in order. Only these can be played. */
   tracksToPlay: TrackObject[];
   activeTrackUrl: TrackUrl;
-  activeAyatNumber: number;
   handleAyatClick: (track: TrackUrl) => void;
-  isPlaying: boolean;
-  /** Replace the Arabic with a bar until the ayat is tapped to reveal. */
-  hideText: boolean;
-  /** Show the memorized circle on each row. */
-  trackMemorization: boolean;
+  mode: PlayerMode;
+  revealed: Record<number, boolean>;
+  onToggleReveal: (ayatNumber: number) => void;
   statuses: Record<string, MemorizationStatus>;
   onCycleStatus: (ayatNumber: number) => void;
+  pendingStart: number | null;
+  onPickNumber: (ayatNumber: number) => void;
+  /** An ayah outside the range was tapped; the parent confirms before leaving the range. */
+  onPlayOutsideRange: (ayatNumber: number) => void;
 }
 
-const statusLabel = (status: MemorizationStatus | undefined) =>
-  status === "memorized" ? "memorized" : status === "revise" ? "to revise" : "new";
+const STATUS_DOT: Record<string, string> = {
+  new: "bg-slate-300",
+  revise: "bg-amber-500",
+  memorized: "bg-emerald-500",
+};
 
-const circleClass = (status: MemorizationStatus | undefined) =>
-  status === "memorized"
-    ? "border-emerald-600 bg-emerald-600 text-white"
-    : status === "revise"
-      ? "border-amber-600 bg-amber-600 text-white"
-      : "border-slate-300 bg-white text-transparent hover:border-slate-400";
+const STATUS_TEXT: Record<string, string> = {
+  new: "text-slate-500",
+  revise: "text-amber-800",
+  memorized: "text-emerald-800",
+};
 
+const hiddenBarStyle = {
+  background: "repeating-linear-gradient(270deg,#cbd5e1 0 26px,transparent 26px 32px)",
+};
+
+/**
+ * Every ayah of the surah, with the selected range tinted. The number on each
+ * row picks the range; a tap anywhere else on the row plays that ayah (outside
+ * the range, after the parent confirms). Only this list scrolls.
+ */
 export const AyatList: React.FC<AyatListProps> = ({
+  surahNumber,
+  numberOfAyats,
+  ayatRange,
   tracksToPlay,
   activeTrackUrl,
   handleAyatClick,
-  isPlaying,
-  hideText,
-  trackMemorization,
+  mode,
+  revealed,
+  onToggleReveal,
   statuses,
   onCycleStatus,
+  pendingStart,
+  onPickNumber,
+  onPlayOutsideRange,
 }) => {
-  const cachedAudio = useCachedAssets("audio-cache", [activeTrackUrl, isPlaying]);
-  const surahNumber = tracksToPlay[0]?.surahNumber ?? 1;
   const surahText = useSurahText(surahNumber);
-  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const listRef = useRef<HTMLOListElement | null>(null);
+  const [start, end] = ayatRange;
+  const memorizing = mode === "memorize";
 
-  // Hiding again (or changing surah) hides everything again.
+  // Bring the start of the range into view when it changes or the text arrives.
   useEffect(() => {
-    setRevealed({});
-  }, [hideText, surahNumber]);
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>(`[data-ayat="${start}"]`);
+    if (!list || !row) return;
+    const offset = row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    list.scrollTop += offset - 8;
+  }, [start, surahNumber, surahText]);
 
   return (
-    <div className="min-h-0 overflow-y-auto border scroll-smooth rounded" role="list">
-      {tracksToPlay.map(({ ayatNumber, trackUrl }, index) => {
-        const isActiveTrack = activeTrackUrl === trackUrl;
-        const arabic = surahText?.[ayatNumber - 1];
-        const isHidden = hideText && !revealed[ayatNumber];
-        const status = statuses[ayatNumber];
-        const label = `Surah ${surahNumber} - Ayat ${ayatNumber}`;
+    <ol ref={listRef} data-ayat-list className="min-h-0 flex-1 overflow-y-auto" aria-label="Ayat">
+      {Array.from({ length: numberOfAyats }, (_, index) => {
+        const n = index + 1;
+        const inRange = n >= start && n <= end;
+        const track = inRange ? tracksToPlay[n - start] : undefined;
+        const isActive = Boolean(track && track.trackUrl === activeTrackUrl);
+        const isEdge = inRange && start !== end && (n === start || n === end);
+        const isPending = pendingStart === n;
+        const hidden = memorizing && !revealed[n];
+        const status = statuses[n] ?? "new";
+        const arabic = surahText?.[index];
+
+        const numberClass = isActive
+          ? "bg-primary text-white"
+          : isPending
+            ? "bg-white text-orange-800 ring-2 ring-orange-500"
+            : isEdge
+              ? "bg-orange-500 text-white"
+              : inRange
+                ? "bg-white text-orange-800 ring-1 ring-orange-400"
+                : "text-slate-400 hover:bg-slate-100";
+        const rowClass = isActive
+          ? "bg-indigo-50"
+          : inRange
+            ? "bg-orange-50/60 hover:bg-orange-50"
+            : "bg-white hover:bg-slate-50";
+        const play = () => (track ? handleAyatClick(track.trackUrl) : onPlayOutsideRange(n));
+
+        const text = hidden ? (
+          <div className="my-2 h-6 w-full rounded-full opacity-60" style={hiddenBarStyle} aria-label="Hidden ayah" />
+        ) : arabic ? (
+          <p className="ayat-arabic" lang="ar">
+            {arabic}
+          </p>
+        ) : (
+          <p className="py-2 text-sm text-slate-500">Ayah {n}</p>
+        );
 
         return (
-          <div
-            key={`${trackUrl}-${index}`}
-            role="listitem"
-            data-track-url={trackUrl}
-            className={`flex items-center border-b last:border-b-0 ${
-              isActiveTrack ? "bg-indigo-50" : "even:bg-slate-50"
-            }`}
+          <li
+            key={n}
+            data-ayat={n}
+            data-track-url={track?.trackUrl}
+            // The whole row plays; its own buttons (number, status, show/hide) keep their actions.
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest("button")) return;
+              play();
+            }}
+            className={`flex cursor-pointer border-b border-slate-100 last:border-b-0 ${rowClass}`}
           >
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-3 p-2 text-left"
-              onClick={() => handleAyatClick(trackUrl)}
-              aria-label={`${isActiveTrack ? "Current" : "Play"} ${label}`}
-              aria-current={isActiveTrack ? "true" : undefined}
-            >
-              <span
-                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums ${
-                  isActiveTrack
-                    ? "border-primary bg-primary text-white"
-                    : "border-slate-200 text-slate-500"
-                }`}
-              >
-                {ayatNumber}
-              </span>
-              {arabic ? (
-                isHidden ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Reveal ayat ${ayatNumber}`}
-                    title="Tap to reveal"
-                    className="h-4 flex-1 rounded-full opacity-70 hover:opacity-100"
-                    style={{
-                      background:
-                        "repeating-linear-gradient(270deg,#cbd5e1 0 26px,transparent 26px 32px)",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRevealed((current) => ({ ...current, [ayatNumber]: true }));
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setRevealed((current) => ({ ...current, [ayatNumber]: true }));
-                      }
-                    }}
-                  />
-                ) : (
-                  <span className="ayat-arabic flex-1" lang="ar">
-                    {arabic}
-                  </span>
-                )
-              ) : (
-                <span className={`flex-1 text-sm ${isActiveTrack ? "font-bold text-primary" : ""}`}>
-                  {isActiveTrack ? "Current" : "Play"} {label}
-                </span>
-              )}
-              {cachedAudio[trackUrl] && <SaveIcon />}
-            </button>
-            {trackMemorization && (
+            <div className="flex w-14 shrink-0 flex-col items-center pt-2">
               <button
                 type="button"
-                className={`mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] ${circleClass(status)}`}
-                onClick={() => onCycleStatus(ayatNumber)}
-                aria-label={`Ayat ${ayatNumber} is ${statusLabel(status)}. Tap to change.`}
+                onClick={() => onPickNumber(n)}
+                aria-label={`Ayah ${n}. Tap to set the range ${pendingStart !== null ? "end" : "start"}.`}
+                className={`grid h-11 min-w-11 place-items-center rounded-full px-1 text-sm font-semibold tabular-nums ${numberClass}`}
               >
-                {status === "revise" ? (
-                  <span aria-hidden="true">↻</span>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M5 12.5l4.5 4.5L19 7" />
-                  </svg>
-                )}
+                {n}
               </button>
-            )}
-          </div>
+              {isEdge && (
+                <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-700">
+                  {n === start ? "From" : "To"}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 py-1.5 pr-3">
+              {/* Keyboard target for the row; mouse and touch taps reach the row's onClick. */}
+              <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    play();
+                  }
+                }}
+                aria-label={track ? `Play ayah ${n}` : `Play from ayah ${n}, leaving the range`}
+                aria-current={isActive ? "true" : undefined}
+                className="rounded"
+              >
+                {text}
+              </div>
+              {memorizing && (
+                <div className="flex items-center justify-end gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onCycleStatus(n)}
+                    aria-label={`Ayah ${n}: ${statusLabel(statuses[n])}. Tap to mark ${nextStatusLabel(statuses[n])}.`}
+                    className={`flex min-h-9 items-center gap-1.5 px-1 ${STATUS_TEXT[status]}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
+                    {statusLabel(statuses[n])}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onToggleReveal(n)}
+                    className="min-h-9 px-1 font-medium text-slate-500 hover:text-primary"
+                  >
+                    {hidden ? "Show" : "Hide"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 };
 

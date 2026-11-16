@@ -15,6 +15,11 @@ export type RepeatProgress = {
 
 export const freshRepeatProgress = (): RepeatProgress => ({ ayatIndex: -1, ayatPlay: 1, rangePasses: 0 });
 
+/** What the screen shows: which play of the current ayat, and which pass of the range (both from 1). */
+export type RepeatCounters = { ayatPlay: number; rangePass: number };
+
+export const freshRepeatCounters = (): RepeatCounters => ({ ayatPlay: 1, rangePass: 1 });
+
 type UseAudioElementEventsParams = {
   audioPlayerRef: RefObject<HTMLAudioElement | null>;
   intentToPlayRef: MutableRefObject<boolean>;
@@ -26,6 +31,8 @@ type UseAudioElementEventsParams = {
   setIsPlaying: (isPlaying: boolean) => void;
   onTrackChanged: () => void;
   onPlaybackStopped: () => void;
+  /** Called whenever repeatProgressRef changes, so the counters on screen can follow. */
+  onRepeatProgress: () => void;
 };
 
 export function useAudioElementEvents({
@@ -39,6 +46,7 @@ export function useAudioElementEvents({
   setIsPlaying,
   onTrackChanged,
   onPlaybackStopped,
+  onRepeatProgress,
 }: UseAudioElementEventsParams) {
   useEffect(() => {
     const audioElement = audioPlayerRef.current;
@@ -78,11 +86,13 @@ export function useAudioElementEvents({
       if (index !== progress.ayatIndex) {
         progress.ayatIndex = index;
         progress.ayatPlay = 1;
+        onRepeatProgress();
         return;
       }
       if (each > 1 && progress.ayatPlay < each && time >= offsets[index].endTime - 0.06) {
         progress.ayatPlay++;
         audioElement.currentTime = offsets[index].startTime;
+        onRepeatProgress();
       }
     };
     const startRepeatWatch = () => {
@@ -105,11 +115,13 @@ export function useAudioElementEvents({
           setActiveTrackUrl(firstTrack.trackUrl);
           activeTrackUrlRef.current = firstTrack.trackUrl;
         }
+        onRepeatProgress();
         audioElement.play().catch(console.error);
         return;
       }
 
       repeatProgressRef.current = freshRepeatProgress();
+      onRepeatProgress();
       intentToPlayRef.current = false;
       setIsPlaying(false);
       onPlaybackStopped();
@@ -152,5 +164,6 @@ export function useAudioElementEvents({
     setIsPlaying,
     onTrackChanged,
     onPlaybackStopped,
+    onRepeatProgress,
   ]);
 }

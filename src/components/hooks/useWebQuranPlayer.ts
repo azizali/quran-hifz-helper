@@ -10,10 +10,16 @@ import { appName, surahs } from "../../_main/config";
 import { type TrackObject, type TrackUrl } from "../../_main/types";
 import type { Bookmark, SelectionRange } from "../controls/libraryTypes";
 import { defaultQariKey, type QariKey } from "../controls/qari";
-import { getActiveAyatNumber, getTracksToPlay } from "../utils";
+import { getActiveAyatNumber, getTracksToPlay, scrollTrackIntoView } from "../utils";
 import { buildConcatenatedAudio } from "./quranPlayer/buildConcatenatedAudio";
 import type { TrackOffset } from "./quranPlayer/types";
-import { freshRepeatProgress, useAudioElementEvents, type RepeatProgress } from "./quranPlayer/useAudioElementEvents";
+import {
+  freshRepeatCounters,
+  freshRepeatProgress,
+  useAudioElementEvents,
+  type RepeatCounters,
+  type RepeatProgress,
+} from "./quranPlayer/useAudioElementEvents";
 import { useRepeatSettings } from "./quranPlayer/repeatSettings";
 import { useMediaSession } from "./quranPlayer/useMediaSession";
 
@@ -84,10 +90,28 @@ const useQuranPlayer = () => {
   const activeTrackUrlRef = useRef<TrackUrl>("" as TrackUrl);
   const repeatRef = useRef(repeat);
   const repeatProgressRef = useRef<RepeatProgress>(freshRepeatProgress());
+  const [repeatCounters, setRepeatCounters] = useState<RepeatCounters>(freshRepeatCounters);
   const trackOffsetsRef = useRef<TrackOffset[]>([]);
+
+  // Mirror the repeat progress ref into state, only when the numbers shown change.
+  const publishRepeatProgress = useCallback(() => {
+    const { ayatPlay, rangePasses } = repeatProgressRef.current;
+    const rangePass = rangePasses + 1;
+    setRepeatCounters((prev) =>
+      prev.ayatPlay === ayatPlay && prev.rangePass === rangePass ? prev : { ayatPlay, rangePass }
+    );
+  }, []);
+
+  const resetRepeatProgress = useCallback(() => {
+    repeatProgressRef.current = freshRepeatProgress();
+    publishRepeatProgress();
+  }, [publishRepeatProgress]);
   const concatenatedBlobUrlRef = useRef<string>("");
   const isReadyRef = useRef(false);
   const buildIdRef = useRef(0); // to discard stale builds
+  // Set by loadSelection({ autoPlay: true }). Kept apart from intentToPlayRef,
+  // which the rebuild clears when it stops the old audio.
+  const autoPlayAfterBuildRef = useRef(false);
 
   const selectedSurah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
@@ -153,11 +177,16 @@ const useQuranPlayer = () => {
       activeTrackUrlRef.current = firstTrack.trackUrl;
     }
 
-    repeatProgressRef.current = freshRepeatProgress();
+    resetRepeatProgress();
     isReadyRef.current = true;
     setIsReady(true);
     setBuildError(null);
-  }, []);
+
+    if (autoPlayAfterBuildRef.current) {
+      autoPlayAfterBuildRef.current = false;
+      startPlaybackRef.current();
+    }
+  }, [resetRepeatProgress]);
 
   // ─── Document title reflects active ayat ───
   const title = useMemo(
@@ -196,12 +225,12 @@ const useQuranPlayer = () => {
     const offset = trackOffsetsRef.current.find(o => o.trackUrl === trackUrl);
     if (offset) {
       audioRef.currentTime = offset.startTime;
-      repeatProgressRef.current = freshRepeatProgress();
+      resetRepeatProgress();
       setActiveTrackUrl(trackUrl);
       activeTrackUrlRef.current = trackUrl;
       startPlayback();
     }
-  }, [startPlayback]);
+  }, [startPlayback, resetRepeatProgress]);
 
   const seekToTrackRef = useRef(seekToTrack);
   useEffect(() => { seekToTrackRef.current = seekToTrack; }, [seekToTrack]);
@@ -271,14 +300,14 @@ const useQuranPlayer = () => {
     const audioRef = audioPlayerRef.current;
     if (!audioRef || !isReadyRef.current) return;
     audioRef.currentTime = 0;
-    repeatProgressRef.current = freshRepeatProgress();
+    resetRepeatProgress();
     if (trackOffsetsRef.current.length > 0) {
       const first = trackOffsetsRef.current[0];
       setActiveTrackUrl(first.trackUrl);
       activeTrackUrlRef.current = first.trackUrl;
     }
     startPlayback();
-  }, [startPlayback]);
+  }, [startPlayback, resetRepeatProgress]);
 
   const handleAyatClick = useCallback(
     (trackUrl: TrackUrl) => seekToTrack(trackUrl),
@@ -296,18 +325,10 @@ const useQuranPlayer = () => {
     setIsPlaying,
     onTrackChanged: () => {
       updateMediaSessionMetadata(activeTrackUrlRef.current);
-      const trackUrl = activeTrackUrlRef.current;
-      const escapedTrackUrl =
-        window.CSS && typeof window.CSS.escape === "function"
-          ? window.CSS.escape(trackUrl)
-          : trackUrl.replace(/"/g, '\\"');
-      const element = document.querySelector(`[data-track-url=\"${escapedTrackUrl}\"]`);
-      if (element) {
-        const scrollTarget = element.previousElementSibling || element;
-        scrollTarget.scrollIntoView({ block: "nearest" });
-      }
+      scrollTrackIntoView(activeTrackUrlRef.current);
     },
     onPlaybackStopped: () => setPlaybackState("none"),
+    onRepeatProgress: publishRepeatProgress,
   });
 
   // ─── Rebuild concatenated audio when tracks change ───
@@ -333,9 +354,9 @@ const useQuranPlayer = () => {
       ayatRange: SelectionRange;
       autoPlay?: boolean;
     }) => {
+      autoPlayAfterBuildRef.current = Boolean(autoPlay);
       setSurahNumber(surahNumber);
       setAyatRange(ayatRange);
-      intentToPlayRef.current = Boolean(autoPlay);
     },
     [setAyatRange, setSurahNumber]
   );
@@ -466,6 +487,7 @@ const useQuranPlayer = () => {
     removeBookmark,
     reorderBookmarks,
     repeat,
+    repeatCounters,
     setEach,
     setWhole,
     playbackRate,

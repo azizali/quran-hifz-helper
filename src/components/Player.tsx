@@ -1,21 +1,29 @@
 import { App } from "@capacitor/app";
 import { useEffect, useState } from "react";
-import { appName } from "../_main/config";
-import { isNativePlatform } from "../_main/platform";
 import { useLocalStorage } from "usehooks-ts";
+import { isNativePlatform } from "../_main/platform";
 import AyatList from "./controls/AyatList";
-import { ListToggleButtons, MemorizationSummary } from "./controls/AyatListToolbar";
-import OfflineStatus from "./controls/OfflineStatus";
+import LeaveRangeSheet from "./controls/LeaveRangeSheet";
 import LibraryPanel from "./controls/LibraryPanel";
 import NativeProgressBar from "./controls/NativeProgressBar";
-import PlayControls from "./controls/PlayControls";
+import OfflineStatus from "./controls/OfflineStatus";
 import PlayerActionBar from "./controls/PlayerActionBar";
 import PreloadProgress from "./controls/PreloadProgress";
+import QariSelector from "./controls/QariSelector";
+import RangeBar, { type PlayerMode } from "./controls/RangeBar";
 import { RepeatSheet } from "./controls/RepeatControl";
-import Header from "./Header";
+import SurahSelector from "./controls/SurahSelector";
 import useQuranPlayer from "./hooks/useQuranPlayer";
 import { useMemorization } from "./hooks/useMemorization";
+import BookmarkIcon from "./icons/BookmarkIcon";
 
+/**
+ * Layout, top to bottom, in the order it is used:
+ * 1. Qari, then surah with the offline and saved-range buttons.
+ * 2. The range: From and To, Save, and Listen / Memorize.
+ * 3. The ayat. Only this list scrolls.
+ * 4. Playback, always in reach.
+ */
 const QuranApp = () => {
   const {
     isPlaying,
@@ -34,6 +42,7 @@ const QuranApp = () => {
     removeBookmark,
     reorderBookmarks,
     repeat,
+    repeatCounters,
     setEach,
     setWhole,
     tracksToPlay,
@@ -52,26 +61,30 @@ const QuranApp = () => {
     handleAyatClick,
   } = useQuranPlayer();
 
-  const [hideText, setHideText] = useLocalStorage<boolean>("hideText", false);
-  const [trackMemorization, setTrackMemorization] = useLocalStorage<boolean>("trackMemorization", false);
+  const [mode, setMode] = useLocalStorage<PlayerMode>("playerMode", "listen");
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [pendingStart, setPendingStart] = useState<number | null>(null);
   const { statuses, cycle: cycleStatus, counts: memorizationCounts } = useMemorization(
     surahNumber,
     surah.numberOfAyats
   );
 
-  const startingAyatNumber = tracksToPlay[0]?.ayatNumber ?? ayatRange[0];
-  
-  const findCurrentBookmark = () =>
-    bookmarks.find(
-      (b) =>
-        b.surahNumber === surahNumber &&
-        b.ayatRange[0] === ayatRange[0] &&
-        b.ayatRange[1] === ayatRange[1]
-    );
+  // A new surah or mode hides everything again and drops a half-picked range.
+  useEffect(() => {
+    setRevealed({});
+    setPendingStart(null);
+  }, [surahNumber, mode]);
 
-  const currentBookmark = findCurrentBookmark();
+  const startingAyatNumber = tracksToPlay[0]?.ayatNumber ?? ayatRange[0];
+
+  const currentBookmark = bookmarks.find(
+    (b) =>
+      b.surahNumber === surahNumber &&
+      b.ayatRange[0] === ayatRange[0] &&
+      b.ayatRange[1] === ayatRange[1]
+  );
   const isBookmarked = Boolean(currentBookmark);
-  
+
   const toggleCurrentSelectionBookmark = () => {
     if (currentBookmark) {
       removeBookmark(currentBookmark.id);
@@ -79,21 +92,60 @@ const QuranApp = () => {
       addCurrentSelectionToBookmarks();
     }
   };
+
+  const changeRange = (range: [number, number]) => {
+    setPendingStart(null);
+    setAyatRange(range);
+  };
+
+  // First tap marks the start; the second sets the range. Nothing is rebuilt until then.
+  const pickNumber = (ayatNumber: number) => {
+    if (pendingStart === null) {
+      setPendingStart(ayatNumber);
+      return;
+    }
+    changeRange([Math.min(pendingStart, ayatNumber), Math.max(pendingStart, ayatNumber)]);
+  };
+
+  const anyRevealed = Object.keys(revealed).length > 0;
+  const toggleRevealAll = () => {
+    if (anyRevealed) {
+      setRevealed({});
+      return;
+    }
+    const all: Record<number, boolean> = {};
+    for (let n = 1; n <= surah.numberOfAyats; n++) all[n] = true;
+    setRevealed(all);
+  };
+
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showRepeat, setShowRepeat] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
+  // An ayah tapped outside the range, waiting for the user to confirm leaving the range.
+  const [leaveRangeFor, setLeaveRangeFor] = useState<number | null>(null);
 
-  // Android back: close the panel, otherwise background the app so a
-  // relaunch doesn't restart the JS layer and stop playback.
+  // Confirmed: the range becomes this ayah to the end of the surah, and it plays.
+  const playFromOutsideRange = (ayatNumber: number) => {
+    setLeaveRangeFor(null);
+    setPendingStart(null);
+    loadSelection({ surahNumber, ayatRange: [ayatNumber, surah.numberOfAyats], autoPlay: true });
+  };
+
+  // Android back: close the panel or cancel a half-picked range, otherwise
+  // background the app so a relaunch doesn't restart the JS layer and stop playback.
   useEffect(() => {
     if (!isNativePlatform()) return;
     const handle = App.addListener("backButton", () => {
-      if (showDownloads) {
+      if (leaveRangeFor !== null) {
+        setLeaveRangeFor(null);
+      } else if (showDownloads) {
         setShowDownloads(false);
       } else if (showRepeat) {
         setShowRepeat(false);
       } else if (showBookmarks) {
         setShowBookmarks(false);
+      } else if (pendingStart !== null) {
+        setPendingStart(null);
       } else {
         App.minimizeApp();
       }
@@ -101,95 +153,100 @@ const QuranApp = () => {
     return () => {
       handle.then((h) => h.remove());
     };
-  }, [showBookmarks, showRepeat, showDownloads]);
+  }, [showBookmarks, showRepeat, showDownloads, pendingStart, leaveRangeFor]);
 
   return (
     <div className="app-shell flex mx-auto w-full max-w-md md:max-w-4xl xl:max-w-6xl flex-col bg-white md:shadow-sm">
-      <Header
-        appName={appName}
-        rightActions={(
-          <button
-            onClick={() => setShowBookmarks((v) => !v)}
-            className="header-action-btn"
-            aria-label="Bookmarks"
-          >
-            Bookmarks
-          </button>
-        )}
-      />
-      <div className="p-4 flex-grow min-h-0 overflow-hidden flex gap-2 flex-col md:flex-row md:gap-6">
-        <div className="flex flex-col gap-2 md:w-72 md:shrink-0 md:overflow-y-auto">
-          <PlayControls
-            qariKey={qariKey}
-            setQariKey={setQariKey}
-            ayatRange={ayatRange}
-            setAyatRange={setAyatRange}
-            surah={surah}
+      <div className="shrink-0 border-b border-slate-200 px-3 pt-2 pb-1">
+        <QariSelector qariKey={qariKey} setQariKey={setQariKey} />
+        <div className="mt-1 flex items-center gap-1">
+          <SurahSelector
             surahNumber={surahNumber}
             setSurahNumber={setSurahNumber}
-            toggleCurrentSelectionBookmark={toggleCurrentSelectionBookmark}
-            isBookmarked={isBookmarked}
-            rangeActions={
-              <ListToggleButtons
-                hideText={hideText}
-                onToggleHideText={() => setHideText((v) => !v)}
-                trackMemorization={trackMemorization}
-                onToggleTracking={() => setTrackMemorization((v) => !v)}
-              />
-            }
-            offlineStatus={
-              <OfflineStatus
-                surah={surah}
-                qariKey={qariKey}
-                ayatRange={ayatRange}
-                open={showDownloads}
-                onOpenChange={setShowDownloads}
-              />
-            }
+            setAyatRange={setAyatRange}
           />
-        </div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          {trackMemorization && (
-            <MemorizationSummary
-              numberOfAyats={surah.numberOfAyats}
-              statuses={statuses}
-              counts={memorizationCounts}
-            />
-          )}
-          <AyatList
-            hideText={hideText}
-            trackMemorization={trackMemorization}
-            statuses={statuses}
-            onCycleStatus={cycleStatus}
-            tracksToPlay={tracksToPlay}
-            activeTrackUrl={activeTrackUrl}
-            activeAyatNumber={activeAyatNumber}
-            handleAyatClick={handleAyatClick}
-            isPlaying={isPlaying}
+          <OfflineStatus
+            surah={surah}
+            qariKey={qariKey}
+            ayatRange={ayatRange}
+            open={showDownloads}
+            onOpenChange={setShowDownloads}
           />
+          <button
+            type="button"
+            onClick={() => setShowBookmarks(true)}
+            aria-label={`Saved ranges: ${bookmarks.length}`}
+            className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium tabular-nums text-slate-500 hover:bg-slate-50"
+          >
+            <BookmarkIcon />
+            <span>{bookmarks.length}</span>
+          </button>
         </div>
-        {showBookmarks && (
-          <div className="fixed inset-0 z-50 flex">
-            <div className="absolute inset-0 bg-black bg-opacity-30 transition-opacity" onClick={() => setShowBookmarks(false)} />
-            <div className="safe-area-y relative ml-auto w-full max-w-md h-full bg-white shadow-lg animate-slide-in-right">
-              <LibraryPanel
-                bookmarks={bookmarks}
-                loadSelection={(args) => {
-                  loadSelection(args);
-                  setShowBookmarks(false);
-                }}
-                removeBookmark={removeBookmark}
-                reorderBookmarks={reorderBookmarks}
-                onClose={() => setShowBookmarks(false)}
-              />
-            </div>
-          </div>
-        )}
       </div>
-      <PreloadProgress
-        loaded={preloadProgress.loaded}
-        total={preloadProgress.total}
+
+      <RangeBar
+        ayatRange={ayatRange}
+        numberOfAyats={surah.numberOfAyats}
+        onRangeChange={changeRange}
+        pendingStart={pendingStart}
+        isBookmarked={isBookmarked}
+        onToggleBookmark={toggleCurrentSelectionBookmark}
+        mode={mode}
+        onModeChange={setMode}
+        memorization={
+          mode === "memorize"
+            ? { counts: memorizationCounts, anyRevealed, onToggleRevealAll: toggleRevealAll }
+            : undefined
+        }
       />
+
+      <AyatList
+        surahNumber={surahNumber}
+        numberOfAyats={surah.numberOfAyats}
+        ayatRange={ayatRange}
+        tracksToPlay={tracksToPlay}
+        activeTrackUrl={activeTrackUrl}
+        handleAyatClick={handleAyatClick}
+        mode={mode}
+        revealed={revealed}
+        onToggleReveal={(n) => setRevealed((current) => ({ ...current, [n]: !current[n] }))}
+        statuses={statuses}
+        onCycleStatus={cycleStatus}
+        pendingStart={pendingStart}
+        onPickNumber={pickNumber}
+        onPlayOutsideRange={setLeaveRangeFor}
+      />
+      <LeaveRangeSheet
+        ayatNumber={leaveRangeFor}
+        ayatRange={ayatRange}
+        numberOfAyats={surah.numberOfAyats}
+        onConfirm={playFromOutsideRange}
+        onCancel={() => setLeaveRangeFor(null)}
+      />
+
+      {showBookmarks && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-30 transition-opacity"
+            onClick={() => setShowBookmarks(false)}
+          />
+          <div className="safe-area-y relative ml-auto w-full max-w-md h-full bg-white shadow-lg animate-slide-in-right">
+            <LibraryPanel
+              bookmarks={bookmarks}
+              loadSelection={(args) => {
+                loadSelection(args);
+                setPendingStart(null);
+                setShowBookmarks(false);
+              }}
+              removeBookmark={removeBookmark}
+              reorderBookmarks={reorderBookmarks}
+              onClose={() => setShowBookmarks(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      <PreloadProgress loaded={preloadProgress.loaded} total={preloadProgress.total} />
 
       {buildError && (
         <div className="px-4 py-2 bg-red-50 border border-red-300 text-red-800 text-sm">
@@ -230,6 +287,7 @@ const QuranApp = () => {
         handlePause={handlePause}
         handleReset={handleReset}
         repeat={repeat}
+        repeatCounters={repeatCounters}
         onOpenRepeat={() => setShowRepeat(true)}
       />
       <RepeatSheet

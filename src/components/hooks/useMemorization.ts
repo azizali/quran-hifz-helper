@@ -9,6 +9,12 @@ type MemorizationStore = Record<string, Record<string, MemorizationStatus>>;
 export const nextStatus = (status: MemorizationStatus | undefined): MemorizationStatus | undefined =>
   status === undefined ? "memorized" : status === "memorized" ? "revise" : undefined;
 
+export const statusLabel = (status: MemorizationStatus | undefined) =>
+  status === "memorized" ? "Memorized" : status === "revise" ? "To revise" : "New";
+
+export const nextStatusLabel = (status: MemorizationStatus | undefined) =>
+  statusLabel(nextStatus(status)).toLowerCase();
+
 /** Per-surah memorization marks, saved on this device. */
 export function useMemorization(surahNumber: number, numberOfAyats: number) {
   const [store, setStore] = useLocalStorage<MemorizationStore>("memorization", {});

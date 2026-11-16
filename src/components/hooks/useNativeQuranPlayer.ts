@@ -6,8 +6,9 @@ import { getLocalPaths, subscribeToDownloadChanges } from "../../native-audio/do
 import { NativeQuranAudio, type QueueTrack } from "../../native-audio";
 import type { Bookmark, SelectionRange } from "../controls/libraryTypes";
 import { defaultQariKey, type QariKey } from "../controls/qari";
-import { getActiveAyatNumber, getTracksToPlay } from "../utils";
+import { getActiveAyatNumber, getTracksToPlay, scrollTrackIntoView } from "../utils";
 import { baseTrackUrl, expandForQueue, REPEAT_FOREVER, useRepeatSettings } from "./quranPlayer/repeatSettings";
+import { freshRepeatCounters, type RepeatCounters } from "./quranPlayer/useAudioElementEvents";
 
 const PLAYBACK_RATE_STEP = 0.1;
 const MIN_PLAYBACK_RATE = 1;
@@ -29,14 +30,6 @@ const getSelectionLabel = (selectedSurahNumber: number, selectedAyatRange: Selec
 
   if (isFullSurah) return `${selectedSurah.number}. ${selectedSurah.name} (Full Surah)`;
   return `${selectedSurah.number}. ${selectedSurah.name} (Ayat ${startAyatNumber}-${endAyatNumber})`;
-};
-
-const scrollTrackIntoView = (trackUrl: string) => {
-  const element = document.querySelector(`[data-track-url="${window.CSS.escape(trackUrl)}"]`);
-  if (element) {
-    const scrollTarget = element.previousElementSibling || element;
-    scrollTarget.scrollIntoView({ block: "nearest" });
-  }
 };
 
 const nullAudioRef: MutableRefObject<HTMLAudioElement | null> = { current: null };
@@ -64,6 +57,36 @@ const useNativeQuranPlayer = () => {
   // Queue entry ids (a repeated ayat appears several times) and their tracks.
   const queueEntriesRef = useRef<{ id: string; track: TrackObject }[]>([]);
   const buildIdRef = useRef(0);
+  // Set by loadSelection({ autoPlay: true }); playback starts once the new queue is ready.
+  const autoPlayRef = useRef(false);
+
+  // Repeat counters come from the queue position: each ayat appears `each`
+  // times in a row, and a pass is one run through the range. A looping range
+  // restarts the queue, which is counted as a new pass.
+  const [repeatCounters, setRepeatCounters] = useState<RepeatCounters>(freshRepeatCounters);
+  const queueShapeRef = useRef({ trackCount: 0, each: 1 });
+  const lastQueueIndexRef = useRef(-1);
+  const loopCountRef = useRef(0);
+
+  const publishQueueIndex = useCallback((index: number) => {
+    const entries = queueEntriesRef.current;
+    const { trackCount, each } = queueShapeRef.current;
+    if (index < 0 || trackCount === 0) return;
+    const wrapped = index === 0 && lastQueueIndexRef.current === entries.length - 1 && entries.length > 1;
+    if (wrapped) loopCountRef.current += 1;
+    lastQueueIndexRef.current = index;
+    const ayatPlay = (index % each) + 1;
+    const rangePass = Math.floor(index / (trackCount * each)) + 1 + loopCountRef.current;
+    setRepeatCounters((prev) =>
+      prev.ayatPlay === ayatPlay && prev.rangePass === rangePass ? prev : { ayatPlay, rangePass }
+    );
+  }, []);
+
+  // A jump the user asked for starts the counting again.
+  const resetQueueCounting = useCallback(() => {
+    lastQueueIndexRef.current = -1;
+    loopCountRef.current = 0;
+  }, []);
 
   const selectedSurah = useMemo(() => surahs[surahNumber - 1], [surahNumber]);
 
@@ -143,6 +166,7 @@ const useNativeQuranPlayer = () => {
         const startIndex = keptIndex >= 0 ? keptIndex : requestedStartIndex;
 
         queueEntriesRef.current = entries;
+        queueShapeRef.current = { trackCount: tracks.length, each: repeat.each };
 
         await NativeQuranAudio.setQueue({
           tracks: queueTracks,
@@ -155,13 +179,28 @@ const useNativeQuranPlayer = () => {
         const activeTrack = (entries[startIndex] ?? entries[0]).track;
         activeTrackUrlRef.current = activeTrack.trackUrl;
         setActiveTrackUrl(activeTrack.trackUrl);
+        resetQueueCounting();
+        publishQueueIndex(entries[startIndex] ? startIndex : 0);
         setIsReady(true);
+        if (autoPlayRef.current) {
+          autoPlayRef.current = false;
+          NativeQuranAudio.play().catch(console.error);
+        }
       } catch (error) {
         console.error("Failed to build native queue:", error);
         setBuildError(QUEUE_ERROR_MESSAGE);
       }
     },
-    [surahNumber, ayatRange, buildQueueTracks, playbackRate, repeat, autoAdvanceSurah]
+    [
+      surahNumber,
+      ayatRange,
+      buildQueueTracks,
+      playbackRate,
+      repeat,
+      autoAdvanceSurah,
+      resetQueueCounting,
+      publishQueueIndex,
+    ]
   );
 
   // Rebuild queue whenever the selection, qari, or auto-advance setting changes
@@ -205,6 +244,7 @@ const useNativeQuranPlayer = () => {
         const trackUrl = baseTrackUrl(trackId) as TrackUrl;
         activeTrackUrlRef.current = trackUrl;
         setActiveTrackUrl(trackUrl);
+        publishQueueIndex(queueEntriesRef.current.findIndex(({ id }) => id === trackId));
         scrollTrackIntoView(trackUrl);
       }),
       NativeQuranAudio.addListener("playbackState", ({ isPlaying: playing }) => {
@@ -224,7 +264,7 @@ const useNativeQuranPlayer = () => {
     return () => {
       handles.forEach((handle) => handle.then((h) => h.remove()));
     };
-  }, []);
+  }, [publishQueueIndex]);
 
   useEffect(() => {
     NativeQuranAudio.setRepeat({ enabled: repeat.whole === REPEAT_FOREVER && !autoAdvanceSurah }).catch(console.error);
@@ -246,9 +286,10 @@ const useNativeQuranPlayer = () => {
     (trackUrl: TrackUrl) => {
       const index = queueEntriesRef.current.findIndex(({ track }) => track.trackUrl === trackUrl);
       if (index === -1) return;
+      resetQueueCounting();
       NativeQuranAudio.seek({ index }).then(startPlayback).catch(console.error);
     },
-    [startPlayback]
+    [startPlayback, resetQueueCounting]
   );
 
   const handlePlay = useCallback(
@@ -267,8 +308,9 @@ const useNativeQuranPlayer = () => {
   const handleReset = useCallback(() => {
     const first = queueEntriesRef.current[0];
     if (!first) return;
+    resetQueueCounting();
     NativeQuranAudio.seek({ index: 0 }).then(startPlayback).catch(console.error);
-  }, [startPlayback]);
+  }, [startPlayback, resetQueueCounting]);
 
   const handleAyatClick = useCallback((trackUrl: TrackUrl) => seekToTrack(trackUrl), [seekToTrack]);
 
@@ -287,11 +329,13 @@ const useNativeQuranPlayer = () => {
     ({
       surahNumber: nextSurahNumber,
       ayatRange: nextAyatRange,
+      autoPlay,
     }: {
       surahNumber: number;
       ayatRange: SelectionRange;
       autoPlay?: boolean;
     }) => {
+      autoPlayRef.current = Boolean(autoPlay);
       setSurahNumber(nextSurahNumber);
       setAyatRange(nextAyatRange);
     },
@@ -365,6 +409,7 @@ const useNativeQuranPlayer = () => {
     removeBookmark,
     reorderBookmarks,
     repeat,
+    repeatCounters,
     setEach,
     setWhole,
     autoAdvanceSurah,

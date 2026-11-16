@@ -35,6 +35,32 @@ export const getTracksToPlay = (
   return trackObjects;
 };
 
+/**
+ * Bring the playing ayah's row into the ayat list's view. Rows already fully
+ * visible stay put; otherwise the row is centred, or, when it is too tall to
+ * centre, its first line is placed at the top so reading starts there.
+ */
+export const scrollTrackIntoView = (trackUrl: string) => {
+  const escaped =
+    window.CSS && typeof window.CSS.escape === "function"
+      ? window.CSS.escape(trackUrl)
+      : trackUrl.replace(/"/g, '\\"');
+  const row = document.querySelector<HTMLElement>(`[data-track-url="${escaped}"]`);
+  const list = row?.closest<HTMLElement>("[data-ayat-list]");
+  if (!row || !list) return;
+
+  const listBox = list.getBoundingClientRect();
+  const rowBox = row.getBoundingClientRect();
+  const margin = 8;
+  if (rowBox.top >= listBox.top + margin && rowBox.bottom <= listBox.bottom - margin) return;
+
+  const rowTop = list.scrollTop + (rowBox.top - listBox.top);
+  const fitsCentred = rowBox.height < listBox.height * 0.6;
+  const top = fitsCentred ? rowTop - (listBox.height - rowBox.height) / 2 : rowTop - margin;
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  list.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? "auto" : "smooth" });
+};
+
 export const getActiveAyatNumber = (activeTrackUrl: TrackUrl): number => {
   const lengthOfAudioExtentionPlusDot = audioExtention.length + 1;
   const lengthOfTrackNumber = 6;
