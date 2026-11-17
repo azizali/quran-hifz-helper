@@ -7,7 +7,15 @@ type TextSettingsSheetProps = {
   onScriptChange: (script: QuranScript) => void;
   tajweed: boolean;
   onTajweedChange: (tajweed: boolean) => void;
+  textScale: number;
+  onTextScaleChange: (scale: number) => void;
 };
+
+/** Text sizes, as a multiple of the default. */
+const TEXT_SCALES = [0.85, 1, 1.15, 1.3, 1.5, 1.75, 2, 2.4];
+
+const nearestScaleIndex = (scale: number) =>
+  TEXT_SCALES.reduce((best, s, i) => (Math.abs(s - scale) < Math.abs(TEXT_SCALES[best] - scale) ? i : best), 1);
 
 /** Bottom sheet for how the Quran text looks: the script, and tajweed colours. */
 export const TextSettingsSheet = ({
@@ -17,9 +25,14 @@ export const TextSettingsSheet = ({
   onScriptChange,
   tajweed,
   onTajweedChange,
+  textScale,
+  onTextScaleChange,
 }: TextSettingsSheetProps) => {
   if (!open) return null;
   const tajweedAvailable = script === "uthmani";
+  const scaleIndex = nearestScaleIndex(textScale);
+  const sizeButton =
+    "grid h-11 w-12 place-items-center bg-slate-50 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-primary disabled:text-slate-300 disabled:hover:bg-slate-50";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -49,6 +62,44 @@ export const TextSettingsSheet = ({
         </div>
 
         <div className="min-h-0 overflow-y-auto px-5 pb-5">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <span>
+              <span className="block text-sm font-semibold text-slate-900">Text size</span>
+              <span className="block text-xs tabular-nums text-slate-500">
+                {Math.round(TEXT_SCALES[scaleIndex] * 100)}%
+                {scaleIndex !== 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onTextScaleChange(1)}
+                    className="ml-2 font-semibold text-primary"
+                  >
+                    Reset
+                  </button>
+                )}
+              </span>
+            </span>
+            <div className="flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="Text size">
+              <button
+                type="button"
+                className={`${sizeButton} text-sm`}
+                aria-label="Smaller text"
+                disabled={scaleIndex === 0}
+                onClick={() => onTextScaleChange(TEXT_SCALES[scaleIndex - 1])}
+              >
+                A−
+              </button>
+              <button
+                type="button"
+                className={`${sizeButton} border-l border-slate-200 text-lg`}
+                aria-label="Larger text"
+                disabled={scaleIndex === TEXT_SCALES.length - 1}
+                onClick={() => onTextScaleChange(TEXT_SCALES[scaleIndex + 1])}
+              >
+                A+
+              </button>
+            </div>
+          </div>
+
           <fieldset>
             <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Script</legend>
             <div className="flex flex-col gap-2">

@@ -22,6 +22,7 @@ import SurahSelector from "./controls/SurahSelector";
 import useQuranPlayer from "./hooks/useQuranPlayer";
 import { useMemorization } from "./hooks/useMemorization";
 import BookmarkIcon from "./icons/BookmarkIcon";
+import ChevronDownIcon from "./icons/ChevronDownIcon";
 
 /**
  * Layout, top to bottom, in the order it is used:
@@ -68,11 +69,13 @@ const QuranApp = () => {
   } = useQuranPlayer();
 
   const [mode, setMode] = useLocalStorage<PlayerMode>("playerMode", "listen");
-  // Landscape only: the controls drawer can slide away, leaving an icon rail.
+  // The controls can be hidden for more reading room: in landscape they slide
+  // away to an icon rail, in portrait they fold into a one-line bar.
   const [controlsHidden, setControlsHidden] = useLocalStorage<boolean>("controlsHidden", false);
   const [quranScript, setQuranScript] = useLocalStorage<QuranScript>("quranScript", "naskh");
   const [tajweed, setTajweed] = useLocalStorage<boolean>("tajweedColours", false);
   const [showTextSettings, setShowTextSettings] = useState(false);
+  const [textScale, setTextScale] = useLocalStorage<number>("ayahTextScale", 1);
 
   // Hiding or showing the drawer changes the list's width, so the text reflows and
   // the scroll offset no longer matches. Bring the current ayah back once the slide ends.
@@ -190,12 +193,11 @@ const QuranApp = () => {
           <div className="min-w-0 flex-1">
             <QariSelector qariKey={qariKey} setQariKey={setQariKey} />
           </div>
-          {/* Shown in landscape only (see .hide-controls-button in global.css). */}
           <button
             type="button"
             onClick={() => setControlsHidden(true)}
             aria-label="Hide controls"
-            className="hide-controls-button min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-primary"
+            className="hide-controls-button inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-primary"
           >
             <ChevronLeftIcon />
             <span>Hide</span>
@@ -217,7 +219,7 @@ const QuranApp = () => {
           <button
             type="button"
             onClick={() => setShowTextSettings(true)}
-            aria-label="Quran text: script and tajweed colours"
+            aria-label="Quran text: script, size and tajweed colours"
             title="Quran text"
             className="grid min-h-11 w-10 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-primary"
           >
@@ -252,7 +254,34 @@ const QuranApp = () => {
       />
       </div>
 
+      {/* Portrait with the controls hidden: one line to bring them back (see .player-compact). */}
+      <div className="player-compact shrink-0 items-center gap-1 border-b border-slate-200 px-2 py-1">
+        <button
+          type="button"
+          onClick={() => setControlsHidden(false)}
+          aria-label="Show controls"
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left hover:bg-slate-50"
+        >
+          <span className="truncate text-base font-semibold text-slate-900">
+            {surah.number}. {surah.name}
+          </span>
+          <span className="shrink-0 text-sm tabular-nums text-slate-500">
+            {ayatRange[0] === ayatRange[1] ? ayatRange[0] : `${ayatRange[0]}–${ayatRange[1]}`}
+          </span>
+          <ChevronDownIcon className="ml-auto shrink-0 text-slate-400" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowTextSettings(true)}
+          aria-label="Quran text: script, size and tajweed colours"
+          className="grid min-h-11 w-10 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-primary"
+        >
+          <TextStyleIcon />
+        </button>
+      </div>
+
       <AyatList
+        textScale={textScale}
         surahNumber={surahNumber}
         numberOfAyats={surah.numberOfAyats}
         ayatRange={ayatRange}
@@ -368,6 +397,8 @@ const QuranApp = () => {
         onScriptChange={setQuranScript}
         tajweed={tajweed}
         onTajweedChange={setTajweed}
+        textScale={textScale}
+        onTextScaleChange={setTextScale}
       />
       <RepeatSheet
         repeat={repeat}

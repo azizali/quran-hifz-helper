@@ -64,7 +64,8 @@ body {
 /* Sized for reading a long list: 20px on phones, 22px from tablet width up. */
 .ayat-arabic {
   font-family: "Amiri", "Geeza Pro", "Traditional Arabic", serif;
-  font-size: 1.25rem;
+  /* --ayah-scale is the reader's text size (Quran text sheet), set on the list. */
+  font-size: calc(1.25rem * var(--ayah-scale, 1));
   line-height: 1.85;
   direction: rtl;
   text-align: right;
@@ -72,7 +73,7 @@ body {
 
 @media (min-width: 768px) {
   .ayat-arabic {
-    font-size: 1.375rem;
+    font-size: calc(1.375rem * var(--ayah-scale, 1));
   }
 }
 
@@ -91,24 +92,24 @@ body {
 
 .ayat-arabic[data-script="uthmani"] {
   font-family: "KFGQPC Uthmanic Hafs", "Amiri", "Geeza Pro", serif;
-  font-size: 1.375rem;
+  font-size: calc(1.375rem * var(--ayah-scale, 1));
   line-height: 2;
 }
 
 /* Nastaleeq sits small and tall: a larger size and more leading keep it as legible as the others. */
 .ayat-arabic[data-script="indopak"] {
   font-family: "IndoPak Nastaleeq", "Amiri", "Geeza Pro", serif;
-  font-size: 1.5rem;
+  font-size: calc(1.5rem * var(--ayah-scale, 1));
   line-height: 2.3;
 }
 
 @media (min-width: 768px) {
   .ayat-arabic[data-script="uthmani"] {
-    font-size: 1.5rem;
+    font-size: calc(1.5rem * var(--ayah-scale, 1));
   }
 
   .ayat-arabic[data-script="indopak"] {
-    font-size: 1.625rem;
+    font-size: calc(1.625rem * var(--ayah-scale, 1));
   }
 }
 
@@ -214,10 +215,25 @@ body {
   flex-direction: column;
 }
 
-/* The slide-away drawer and its icon rail exist in landscape only. */
+/* The icon rail is the landscape form of hidden controls; the compact bar is the portrait form. */
 .player-rail,
-.hide-controls-button {
+.player-compact {
   display: none;
+}
+
+@media (orientation: portrait) {
+  .player-shell[data-controls="hidden"] .player-controls {
+    display: none;
+  }
+
+  .player-shell[data-controls="hidden"] .player-compact {
+    display: flex;
+  }
+
+  /* The controls fold up in portrait, so the Hide chevron points up. */
+  .hide-controls-button svg {
+    transform: rotate(90deg);
+  }
 }
 
 @media (orientation: landscape) {
@@ -229,10 +245,6 @@ body {
     /* A phone on its side is narrower than the tablet breakpoint, so the
        portrait width cap (max-w-md) would squeeze the ayat column. */
     max-width: 72rem;
-  }
-
-  .hide-controls-button {
-    display: inline-flex;
   }
 
   /* Drawer hidden: the controls give way to a slim rail and the ayat take the rest. */

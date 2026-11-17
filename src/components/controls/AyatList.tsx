@@ -26,6 +26,8 @@ interface AyatListProps {
   onPlayOutsideRange: (ayatNumber: number) => void;
   script: QuranScript;
   textVariant: TextVariant;
+  /** Reader's text size, 1 = default. */
+  textScale: number;
 }
 
 /** Plain text, or tajweed runs with each rule's letters coloured. */
@@ -77,6 +79,7 @@ export const AyatList: React.FC<AyatListProps> = ({
   onPlayOutsideRange,
   script,
   textVariant,
+  textScale,
 }) => {
   const surahText = useSurahText(surahNumber, textVariant);
   const listRef = useRef<HTMLOListElement | null>(null);
@@ -102,7 +105,13 @@ export const AyatList: React.FC<AyatListProps> = ({
   }, [start, surahNumber, surahText]);
 
   return (
-    <ol ref={listRef} data-ayat-list className="player-list min-h-0 flex-1 overflow-y-auto" aria-label="Ayat">
+    <ol
+      ref={listRef}
+      data-ayat-list
+      className="player-list min-h-0 flex-1 overflow-y-auto"
+      style={{ "--ayah-scale": textScale } as React.CSSProperties}
+      aria-label="Ayat"
+    >
       {picking ? (
         <li className="sticky top-0 z-10 flex items-center gap-3 border-b border-indigo-200 bg-indigo-50 py-1.5 pl-4 pr-2 text-sm text-indigo-900" aria-live="polite">
           <span className="min-w-0 flex-1">
