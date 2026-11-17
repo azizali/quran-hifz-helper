@@ -30,7 +30,7 @@ const variants = [
  * Tags can nest (a silent alif inside a madd); the innermost rule colours its letters.
  */
 function toSegments(html) {
-  const body = html.replace(/<span class=end>[^<]*<\/span>/g, "").trim();
+  const body = toUthmaniSpelling(html.replace(/<span class=end>[^<]*<\/span>/g, "").trim());
   const segments = [];
   const stack = [];
   const push = (text) => {
@@ -52,6 +52,26 @@ function toSegments(html) {
   }
   if (consumed !== body.length || stack.length) throw new Error(`Unparsed markup in: ${body}`);
   return keepClustersWhole(segments);
+}
+
+/**
+ * The tajweed text spells a few letters differently from the Uthmani text the
+ * KFGQPC font is built for, and the font draws those as broken glyphs. Use the
+ * Uthmani spellings. Tags can sit between a letter and its marks, so markup is
+ * allowed in between.
+ */
+function toUthmaniSpelling(text) {
+  return (
+    text
+      // Alef with wavy hamza above, used for the dagger alif → superscript alef.
+      .replace(/ٲ/g, "ٰ")
+      // Dotless beh before a dagger alif → alef maksura.
+      .replace(/ٮ/g, "ى")
+      // Alef maksura + hamza below → yeh with hamza above.
+      .replace(/ى((?:<[^>]*>|\p{M})*?)ٕ/gu, "ئ$1")
+      // A stray ">" outside any tag (32:3).
+      .replace(/(^|[^a-z_])>/g, "$1")
+  );
 }
 
 const leadingMarks = /^\p{M}+/u;
