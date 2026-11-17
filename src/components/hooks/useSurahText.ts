@@ -1,25 +1,27 @@
 import { useEffect, useState } from "react";
+import { textPath, type AyahText, type TextVariant } from "../quranText";
 
-// Arabic text ships with the app (public/quran-text/<surah>.json), so it
-// works offline on web, iOS and Android. One small file per surah.
-const cache = new Map<number, string[]>();
+// Arabic text ships with the app (public/quran-text), so it works offline on
+// web, iOS and Android. One small file per surah and text style.
+const cache = new Map<string, AyahText[]>();
 
 /** Returns the ayat text of a surah (index 0 = ayat 1), or null while loading. */
-export function useSurahText(surahNumber: number): string[] | null {
-  const [text, setText] = useState<string[] | null>(cache.get(surahNumber) ?? null);
+export function useSurahText(surahNumber: number, variant: TextVariant = "naskh"): AyahText[] | null {
+  const path = textPath(variant, surahNumber);
+  const [text, setText] = useState<AyahText[] | null>(cache.get(path) ?? null);
 
   useEffect(() => {
-    const cached = cache.get(surahNumber);
+    const cached = cache.get(path);
     if (cached) {
       setText(cached);
       return;
     }
     setText(null);
     let cancelled = false;
-    fetch(`${import.meta.env.BASE_URL}quran-text/${surahNumber}.json`)
-      .then((res) => (res.ok ? (res.json() as Promise<string[]>) : Promise.reject(new Error(String(res.status)))))
+    fetch(`${import.meta.env.BASE_URL}${path}`)
+      .then((res) => (res.ok ? (res.json() as Promise<AyahText[]>) : Promise.reject(new Error(String(res.status)))))
       .then((verses) => {
-        cache.set(surahNumber, verses);
+        cache.set(path, verses);
         if (!cancelled) setText(verses);
       })
       .catch(() => {
@@ -28,7 +30,7 @@ export function useSurahText(surahNumber: number): string[] | null {
     return () => {
       cancelled = true;
     };
-  }, [surahNumber]);
+  }, [path]);
 
   return text;
 }

@@ -3,6 +3,7 @@ import { useLocalStorage } from "usehooks-ts";
 import type { TrackObject, TrackUrl } from "../../_main/types";
 import { nextStatusLabel, statusLabel, type MemorizationStatus } from "../hooks/useMemorization";
 import { useSurahText } from "../hooks/useSurahText";
+import type { AyahText, QuranScript, TextVariant } from "../quranText";
 import type { PlayerMode } from "./RangeBar";
 
 interface AyatListProps {
@@ -23,7 +24,27 @@ interface AyatListProps {
   onCancelPick: () => void;
   /** An ayah outside the range was tapped; the parent confirms before leaving the range. */
   onPlayOutsideRange: (ayatNumber: number) => void;
+  script: QuranScript;
+  textVariant: TextVariant;
 }
+
+/** Plain text, or tajweed runs with each rule's letters coloured. */
+const AyahWords = ({ text }: { text: AyahText }) =>
+  typeof text === "string" ? (
+    <>{text}</>
+  ) : (
+    <>
+      {text.map((segment, i) =>
+        typeof segment === "string" ? (
+          segment
+        ) : (
+          <span key={i} className={`tj-${segment[0]}`}>
+            {segment[1]}
+          </span>
+        )
+      )}
+    </>
+  );
 
 const STATUS_TEXT: Record<string, string> = {
   new: "text-slate-500",
@@ -54,8 +75,10 @@ export const AyatList: React.FC<AyatListProps> = ({
   onPickNumber,
   onCancelPick,
   onPlayOutsideRange,
+  script,
+  textVariant,
 }) => {
-  const surahText = useSurahText(surahNumber);
+  const surahText = useSurahText(surahNumber, textVariant);
   const listRef = useRef<HTMLOListElement | null>(null);
   const [start, end] = ayatRange;
   const memorizing = mode === "memorize";
@@ -150,8 +173,8 @@ export const AyatList: React.FC<AyatListProps> = ({
         const text = hidden ? (
           <div className={`ayat-hidden-line ${inRange || picking ? "" : "opacity-50"}`} aria-label="Hidden ayah" />
         ) : arabic ? (
-          <p className={`ayat-arabic ${textClass}`} lang="ar">
-            {arabic}
+          <p className={`ayat-arabic ${textClass}`} data-script={script} lang="ar">
+            <AyahWords text={arabic} />
           </p>
         ) : (
           <p className="py-2 text-sm text-slate-500">Ayah {n}</p>

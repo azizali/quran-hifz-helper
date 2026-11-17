@@ -49,3 +49,11 @@ export const LoopIcon = (props: IconProps) => (
     <path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3" />
   </svg>
 );
+
+/** Text style: a large and a small letter, for the Quran text settings. */
+export const TextStyleIcon = (props: IconProps) => (
+  <svg width={20} height={20} viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
+    <path d="M3 18L8.5 5h1L15 18M5.2 13.5h7.6" />
+    <path d="M17 11.5a2.5 2.5 0 015 0V18M22 15.2c-.9-.5-1.7-.7-2.5-.7-1.6 0-2.5.8-2.5 1.9s.9 1.8 2 1.8c1.3 0 2.4-.9 3-2" />
+  </svg>
+);

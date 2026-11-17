@@ -5,7 +5,9 @@ import { isNativePlatform } from "../_main/platform";
 import AyatList from "./controls/AyatList";
 import ControlsRail from "./controls/ControlsRail";
 import { describeProgress, describeRepeat } from "./hooks/quranPlayer/repeatSettings";
-import { ChevronLeftIcon } from "./icons/ControlIcons";
+import { ChevronLeftIcon, TextStyleIcon } from "./icons/ControlIcons";
+import TextSettingsSheet from "./controls/TextSettingsSheet";
+import { textVariantFor, type QuranScript } from "./quranText";
 import { scrollTrackIntoView } from "./utils";
 import LeaveRangeSheet from "./controls/LeaveRangeSheet";
 import LibraryPanel from "./controls/LibraryPanel";
@@ -68,6 +70,9 @@ const QuranApp = () => {
   const [mode, setMode] = useLocalStorage<PlayerMode>("playerMode", "listen");
   // Landscape only: the controls drawer can slide away, leaving an icon rail.
   const [controlsHidden, setControlsHidden] = useLocalStorage<boolean>("controlsHidden", false);
+  const [quranScript, setQuranScript] = useLocalStorage<QuranScript>("quranScript", "naskh");
+  const [tajweed, setTajweed] = useLocalStorage<boolean>("tajweedColours", false);
+  const [showTextSettings, setShowTextSettings] = useState(false);
 
   // Hiding or showing the drawer changes the list's width, so the text reflows and
   // the scroll offset no longer matches. Bring the current ayah back once the slide ends.
@@ -155,6 +160,8 @@ const QuranApp = () => {
     const handle = App.addListener("backButton", () => {
       if (leaveRangeFor !== null) {
         setLeaveRangeFor(null);
+      } else if (showTextSettings) {
+        setShowTextSettings(false);
       } else if (showDownloads) {
         setShowDownloads(false);
       } else if (showRepeat) {
@@ -170,7 +177,7 @@ const QuranApp = () => {
     return () => {
       handle.then((h) => h.remove());
     };
-  }, [showBookmarks, showRepeat, showDownloads, pendingStart, leaveRangeFor]);
+  }, [showBookmarks, showRepeat, showDownloads, showTextSettings, pendingStart, leaveRangeFor]);
 
   return (
     <div
@@ -207,6 +214,15 @@ const QuranApp = () => {
             open={showDownloads}
             onOpenChange={setShowDownloads}
           />
+          <button
+            type="button"
+            onClick={() => setShowTextSettings(true)}
+            aria-label="Quran text: script and tajweed colours"
+            title="Quran text"
+            className="grid min-h-11 w-10 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-primary"
+          >
+            <TextStyleIcon />
+          </button>
           <button
             type="button"
             onClick={() => setShowBookmarks(true)}
@@ -251,6 +267,8 @@ const QuranApp = () => {
         pendingStart={pendingStart}
         onPickNumber={pickNumber}
         onCancelPick={() => setPendingStart(null)}
+        script={quranScript}
+        textVariant={textVariantFor(quranScript, tajweed)}
         onPlayOutsideRange={setLeaveRangeFor}
       />
       {controlsHidden && (
@@ -343,6 +361,14 @@ const QuranApp = () => {
         onOpenRepeat={() => setShowRepeat(true)}
       />
       </div>
+      <TextSettingsSheet
+        open={showTextSettings}
+        onOpenChange={setShowTextSettings}
+        script={quranScript}
+        onScriptChange={setQuranScript}
+        tajweed={tajweed}
+        onTajweedChange={setTajweed}
+      />
       <RepeatSheet
         repeat={repeat}
         setEach={setEach}

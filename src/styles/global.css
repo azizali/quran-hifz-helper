@@ -76,6 +76,61 @@ body {
   }
 }
 
+/* Mushaf fonts, bundled in public/fonts for offline use. */
+@font-face {
+  font-family: "KFGQPC Uthmanic Hafs";
+  src: url("/fonts/UthmanicHafs1Ver18.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IndoPak Nastaleeq";
+  src: url("/fonts/indopak-nastaleeq-waqf-lazim-v4.2.1.woff2") format("woff2");
+  font-display: swap;
+}
+
+.ayat-arabic[data-script="uthmani"] {
+  font-family: "KFGQPC Uthmanic Hafs", "Amiri", "Geeza Pro", serif;
+  font-size: 1.375rem;
+  line-height: 2;
+}
+
+/* Nastaleeq sits small and tall: a larger size and more leading keep it as legible as the others. */
+.ayat-arabic[data-script="indopak"] {
+  font-family: "IndoPak Nastaleeq", "Amiri", "Geeza Pro", serif;
+  font-size: 1.5rem;
+  line-height: 2.3;
+}
+
+@media (min-width: 768px) {
+  .ayat-arabic[data-script="uthmani"] {
+    font-size: 1.5rem;
+  }
+
+  .ayat-arabic[data-script="indopak"] {
+    font-size: 1.625rem;
+  }
+}
+
+/* Tajweed colours, the scheme most colour-coded mushafs use. */
+.tj-ghunnah { color: #e86a10; }
+.tj-ikhafa { color: #9400a8; }
+.tj-ikhafa_shafawi { color: #c2009f; }
+.tj-idgham_ghunnah { color: #12866a; }
+.tj-idgham_shafawi { color: #4f9a00; }
+.tj-idgham_wo_ghunnah { color: #1d7a00; }
+.tj-idgham_mutajanisayn,
+.tj-idgham_mutaqaribayn { color: #8a8a8a; }
+.tj-iqlab { color: #0a9bd6; }
+.tj-qalaqah { color: #d40010; }
+.tj-madda_normal { color: #4a74f0; }
+.tj-madda_permissible { color: #3546e8; }
+.tj-madda_obligatory { color: #1f3bb0; }
+.tj-madda_necessary { color: #000c9e; }
+.tj-ham_wasl,
+.tj-laam_shamsiyah,
+.tj-slnt { color: #9ca3af; }
+
 /*
  * The selected range is one thin indigo line down the number gutter,
  * starting at the From ayah and ending at the To ayah.
