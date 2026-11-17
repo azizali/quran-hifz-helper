@@ -61,7 +61,7 @@ export const ControlsRail = ({
         onClick={isPlaying ? onPause : onPlay}
         data-label={isPlaying ? "Pause" : "Play"}
         aria-label={isPlaying ? "Pause" : "Play"}
-        className={`${button} rounded-full bg-primary text-white hover:bg-indigo-700`}
+        className={`${button} bg-primary text-white hover:bg-indigo-700`}
       >
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
       </button>

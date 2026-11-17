@@ -33,7 +33,7 @@ const createDragPreview = (row: HTMLElement) => {
 
 const getBookmarkRowClass = (isDropTarget: boolean) =>
   isDropTarget
-    ? "rounded-md border-2 border-orange-400 bg-orange-50 p-2 flex items-center justify-between gap-2"
+    ? "rounded-md border-2 border-indigo-300 bg-indigo-50 p-2 flex items-center justify-between gap-2"
     : "rounded-md border border-slate-200 p-2 bg-white flex items-center justify-between gap-2";
 
 const LibraryPanel = ({

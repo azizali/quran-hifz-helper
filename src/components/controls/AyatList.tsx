@@ -23,20 +23,10 @@ interface AyatListProps {
   onPlayOutsideRange: (ayatNumber: number) => void;
 }
 
-const STATUS_DOT: Record<string, string> = {
-  new: "bg-slate-300",
-  revise: "bg-amber-500",
-  memorized: "bg-emerald-500",
-};
-
 const STATUS_TEXT: Record<string, string> = {
   new: "text-slate-500",
-  revise: "text-amber-800",
-  memorized: "text-emerald-800",
-};
-
-const hiddenBarStyle = {
-  background: "repeating-linear-gradient(270deg,#cbd5e1 0 26px,transparent 26px 32px)",
+  revise: "text-slate-700",
+  memorized: "text-emerald-700",
 };
 
 /**
@@ -87,26 +77,25 @@ export const AyatList: React.FC<AyatListProps> = ({
         const status = statuses[n] ?? "new";
         const arabic = surahText?.[index];
 
+        const isFrom = inRange && n === start;
+        const isTo = inRange && n === end;
         const numberClass = isActive
           ? "bg-primary text-white"
           : isPending
-            ? "bg-white text-orange-800 ring-2 ring-orange-500"
-            : isEdge
-              ? "bg-orange-500 text-white"
+            ? "text-primary outline-dashed outline-[1.5px] outline-offset-1 outline-primary"
+            : isFrom || isTo
+              ? "text-primary"
               : inRange
-                ? "bg-white text-orange-800 ring-1 ring-orange-400"
+                ? "text-slate-700 hover:bg-slate-100"
                 : "text-slate-400 hover:bg-slate-100";
-        const rowClass = isActive
-          ? "bg-indigo-50"
-          : inRange
-            ? "bg-orange-50/60 hover:bg-orange-50"
-            : "bg-white hover:bg-slate-50";
+        const rowClass = isActive ? "bg-indigo-50" : "bg-white hover:bg-slate-50";
+        const textClass = isActive ? "text-indigo-950" : inRange ? "text-slate-900" : "text-slate-500";
         const play = () => (track ? handleAyatClick(track.trackUrl) : onPlayOutsideRange(n));
 
         const text = hidden ? (
-          <div className="my-2 h-6 w-full rounded-full opacity-60" style={hiddenBarStyle} aria-label="Hidden ayah" />
+          <div className={`ayat-hidden-line ${inRange ? "" : "opacity-50"}`} aria-label="Hidden ayah" />
         ) : arabic ? (
-          <p className="ayat-arabic" lang="ar">
+          <p className={`ayat-arabic ${textClass}`} lang="ar">
             {arabic}
           </p>
         ) : (
@@ -123,21 +112,27 @@ export const AyatList: React.FC<AyatListProps> = ({
               if ((e.target as HTMLElement).closest("button")) return;
               play();
             }}
+            data-in-range={inRange || undefined}
+            data-range-edge={[isFrom && "from", isTo && "to"].filter(Boolean).join(" ") || undefined}
+            data-active={isActive || undefined}
             className={`flex cursor-pointer border-b border-slate-100 last:border-b-0 ${rowClass}`}
           >
-            <div className="flex w-14 shrink-0 flex-col items-center pt-2">
+            <div className="ayat-gutter flex w-14 shrink-0 flex-col items-center pt-1.5">
+              {/* A 44px tap target around a small numeral; no circle. */}
               <button
                 type="button"
                 onClick={() => onPickNumber(n)}
                 aria-label={`Ayah ${n}. Tap to set the range ${pendingStart !== null ? "end" : "start"}.`}
-                className={`grid h-11 min-w-11 place-items-center rounded-full px-1 text-sm font-semibold tabular-nums ${numberClass}`}
+                className="grid h-11 min-w-11 place-items-start justify-center pt-1.5"
               >
-                {n}
+                <span
+                  className={`block h-6 min-w-8 rounded-md px-1 text-[13px] font-semibold leading-6 tabular-nums ${numberClass}`}
+                >
+                  {n}
+                </span>
               </button>
               {isEdge && (
-                <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-700">
-                  {n === start ? "From" : "To"}
-                </span>
+                <span className="-mt-3 text-[10px] font-semibold text-primary">{isFrom ? "From" : "To"}</span>
               )}
             </div>
             <div className="min-w-0 flex-1 py-1.5 pr-3">
@@ -165,13 +160,13 @@ export const AyatList: React.FC<AyatListProps> = ({
                     aria-label={`Ayah ${n}: ${statusLabel(statuses[n])}. Tap to mark ${nextStatusLabel(statuses[n])}.`}
                     className={`flex min-h-9 items-center gap-1.5 px-1 ${STATUS_TEXT[status]}`}
                   >
-                    <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
+                    <span className="status-mark" data-status={status} aria-hidden="true" />
                     {statusLabel(statuses[n])}
                   </button>
                   <button
                     type="button"
                     onClick={() => onToggleReveal(n)}
-                    className="min-h-9 px-1 font-medium text-slate-500 hover:text-primary"
+                    className="min-h-9 px-1 font-semibold text-primary hover:text-indigo-700"
                   >
                     {hidden ? "Show" : "Hide"}
                   </button>

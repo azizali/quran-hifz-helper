@@ -1,6 +1,7 @@
 import { type TrackUrl } from "../../_main/types";
 import { describeProgress, type RepeatSettings } from "../hooks/quranPlayer/repeatSettings";
 import type { RepeatCounters } from "../hooks/quranPlayer/useAudioElementEvents";
+import { PauseIcon, PlayIcon, RestartIcon } from "../icons/ControlIcons";
 import PlaybackSpeedControl from "./PlaybackSpeedControl";
 import { RepeatPill } from "./RepeatControl";
 
@@ -59,18 +60,21 @@ const PlayerActionBar = ({
         <div className="player-play inline-flex min-w-0 flex-1 gap-1" role="group">
           <button
             type="button"
-            className="min-h-11 min-w-0 flex-1 rounded-lg bg-primary px-3 text-lg font-bold text-white"
+            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-base font-semibold text-white hover:bg-indigo-700"
             onClick={() => (isPlaying ? handlePause() : handlePlay({ activeTrackUrl }))}
           >
+            {isPlaying ? <PauseIcon width={16} height={16} /> : <PlayIcon width={16} height={16} />}
             {isPlaying ? "Pause" : "Play"}
           </button>
           {showRestart && (
             <button
               type="button"
-              className="min-h-11 rounded-lg bg-secondary px-3 text-sm font-bold text-white"
+              aria-label={`Restart from ayah ${startingAyatNumber}`}
+              title={`Restart from ayah ${startingAyatNumber}`}
+              className="grid min-h-11 w-11 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-primary"
               onClick={handleReset}
             >
-              Restart
+              <RestartIcon width={18} height={18} />
             </button>
           )}
         </div>

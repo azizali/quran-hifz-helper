@@ -110,7 +110,7 @@ export const RangeBar = ({
           aria-pressed={isBookmarked}
           aria-label={isBookmarked ? "Remove this range from bookmarks" : "Bookmark this range"}
           className={`flex min-h-11 items-center gap-1 px-2 text-sm font-semibold disabled:opacity-40 ${
-            isBookmarked ? "text-orange-600" : "text-slate-600"
+            isBookmarked ? "text-primary" : "text-slate-600"
           }`}
         >
           <BookmarkIcon filled={isBookmarked} />
@@ -120,7 +120,7 @@ export const RangeBar = ({
 
       <div className="mt-1 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
-          <span className={`truncate ${picking ? "font-semibold text-orange-700" : ""}`} aria-live="polite">
+          <span className={`truncate ${picking ? "font-semibold text-primary" : ""}`} aria-live="polite">
             {picking
               ? "Tap the last ayah of the range."
               : `${count} of ${numberOfAyats} ayahs${isWholeSurah ? " · whole surah" : ""}`}
@@ -154,9 +154,19 @@ export const RangeBar = ({
 
       {memorization && (
         <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-          <span>
-            {memorization.counts.memorized} memorized · {memorization.counts.revise} to revise ·{" "}
-            {memorization.counts.fresh} new
+          <span className="flex flex-wrap items-center gap-x-3 tabular-nums">
+            {(
+              [
+                ["memorized", memorization.counts.memorized, "memorized"],
+                ["revise", memorization.counts.revise, "to revise"],
+                ["new", memorization.counts.fresh, "new"],
+              ] as const
+            ).map(([status, count, label]) => (
+              <span key={status} className="inline-flex items-center gap-1.5">
+                <span className="status-mark" data-status={status} aria-hidden="true" />
+                {count} {label}
+              </span>
+            ))}
           </span>
           <button
             type="button"

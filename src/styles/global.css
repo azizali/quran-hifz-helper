@@ -77,6 +77,78 @@ body {
 }
 
 /*
+ * The selected range is one thin indigo line down the number gutter,
+ * starting at the From ayah and ending at the To ayah.
+ */
+.ayat-gutter {
+  position: relative;
+}
+
+[data-in-range] > .ayat-gutter::before {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  top: 0;
+  bottom: -1px;
+  width: 2px;
+  background: #a5b4fc;
+}
+
+[data-range-edge~="from"] > .ayat-gutter::before {
+  top: 1rem;
+  border-radius: 2px 2px 0 0;
+}
+
+[data-range-edge~="to"] > .ayat-gutter::before {
+  bottom: auto;
+  height: 1.25rem;
+  border-radius: 0 0 2px 2px;
+}
+
+[data-range-edge~="from"][data-range-edge~="to"] > .ayat-gutter::before {
+  height: 0.5rem;
+}
+
+[data-in-range][aria-current] > .ayat-gutter::before,
+[data-in-range][data-active] > .ayat-gutter::before {
+  background: #4f46e5;
+}
+
+/* Memorize status: the mark's shape carries the meaning, colour only confirms it. */
+.status-mark {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.status-mark[data-status="new"] {
+  border: 1.5px solid #94a3b8;
+}
+
+.status-mark[data-status="revise"] {
+  border: 1.5px solid #334155;
+  background: linear-gradient(90deg, #334155 50%, transparent 50%);
+}
+
+.status-mark[data-status="memorized"] {
+  background: #059669;
+}
+
+.ayat-hidden-line {
+  height: 6px;
+  margin: 1.125rem 0 1rem;
+  border-radius: 2px;
+  background: repeating-linear-gradient(270deg, #cbd5e1 0 30px, transparent 30px 38px);
+}
+
+.player-list {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/*
  * Player layout. Portrait: one column, only the ayat list scrolls.
  * Landscape: the screen is short, so the controls move to a left column
  * (scrolling on their own if needed) and the ayat list takes the full height
