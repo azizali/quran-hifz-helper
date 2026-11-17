@@ -88,7 +88,12 @@ export const AyatList: React.FC<AyatListProps> = ({
               : inRange
                 ? "text-slate-700 hover:bg-slate-100"
                 : "text-slate-400 hover:bg-slate-100";
-        const rowClass = isActive ? "bg-indigo-50" : "bg-white hover:bg-slate-50";
+        // Alternate rows get a faint tint so the eye can tell one ayah from the next.
+        const rowClass = isActive
+          ? "bg-indigo-50"
+          : index % 2 === 1
+            ? "bg-slate-50 hover:bg-slate-100"
+            : "bg-white hover:bg-slate-100/70";
         const textClass = isActive ? "text-indigo-950" : inRange ? "text-slate-900" : "text-slate-500";
         const play = () => (track ? handleAyatClick(track.trackUrl) : onPlayOutsideRange(n));
 
@@ -115,7 +120,7 @@ export const AyatList: React.FC<AyatListProps> = ({
             data-in-range={inRange || undefined}
             data-range-edge={[isFrom && "from", isTo && "to"].filter(Boolean).join(" ") || undefined}
             data-active={isActive || undefined}
-            className={`flex cursor-pointer border-b border-slate-100 last:border-b-0 ${rowClass}`}
+            className={`flex cursor-pointer border-b border-slate-200 last:border-b-0 ${rowClass}`}
           >
             <div className="ayat-gutter flex w-14 shrink-0 flex-col items-center pt-1.5">
               {/* A 44px tap target around a small numeral; no circle. */}

@@ -1,5 +1,6 @@
 import { surahs } from "../../_main/config";
 import ChevronDownIcon from "../icons/ChevronDownIcon";
+import { selectChevronClass, selectClass } from "./selectStyles";
 
 interface SurahSelectorProps {
   surahNumber: number;
@@ -16,7 +17,7 @@ export const SurahSelector: React.FC<SurahSelectorProps> = ({
   <label className="relative flex min-h-11 min-w-0 flex-1 items-center">
     <span className="sr-only">Surah</span>
     <select
-      className="h-11 w-full min-w-0 appearance-none truncate rounded-lg pl-3 pr-8 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+      className={selectClass}
       name="surah"
       id="surah"
       value={surahNumber}
@@ -32,7 +33,7 @@ export const SurahSelector: React.FC<SurahSelectorProps> = ({
         </option>
       ))}
     </select>
-    <ChevronDownIcon className="pointer-events-none absolute right-2 text-slate-400" />
+    <ChevronDownIcon className={selectChevronClass} />
   </label>
 );
 

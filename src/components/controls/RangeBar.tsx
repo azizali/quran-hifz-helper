@@ -1,5 +1,6 @@
 import BookmarkIcon from "../icons/BookmarkIcon";
 import ChevronDownIcon from "../icons/ChevronDownIcon";
+import { selectChevronClass, selectClass } from "./selectStyles";
 
 export type PlayerMode = "listen" | "memorize";
 
@@ -20,8 +21,6 @@ type RangeBarProps = {
   };
 };
 
-const selectClass =
-  "h-11 w-24 appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-7 text-lg font-bold tabular-nums text-slate-900 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400";
 
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
@@ -38,7 +37,7 @@ type AyahSelectProps = {
 const AyahSelect = ({ id, label, value, options, disabled, onChange }: AyahSelectProps) => (
   <label className="flex flex-col gap-1" htmlFor={id}>
     <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
-    <span className="relative flex items-center">
+    <span className="relative flex w-24 items-center">
       <select
         id={id}
         value={value}
@@ -53,7 +52,7 @@ const AyahSelect = ({ id, label, value, options, disabled, onChange }: AyahSelec
           </option>
         ))}
       </select>
-      <ChevronDownIcon className="pointer-events-none absolute right-2 text-slate-400" />
+      <ChevronDownIcon className={selectChevronClass} />
     </span>
   </label>
 );

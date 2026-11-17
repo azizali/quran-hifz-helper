@@ -1,5 +1,6 @@
 import ChevronDownIcon from "../icons/ChevronDownIcon";
 import qaris, { type QariKey } from "./qari";
+import { selectChevronClass, selectClass } from "./selectStyles";
 
 interface QariSelectorProps {
   qariKey: QariKey;
@@ -11,7 +12,7 @@ export const QariSelector: React.FC<QariSelectorProps> = ({ qariKey, setQariKey 
   <label className="relative flex min-h-11 items-center">
     <span className="sr-only">Qari</span>
     <select
-      className="h-11 w-full min-w-0 appearance-none truncate rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-base text-slate-700"
+      className={selectClass}
       name="qari"
       id="qari"
       value={qariKey}
@@ -23,7 +24,7 @@ export const QariSelector: React.FC<QariSelectorProps> = ({ qariKey, setQariKey 
         </option>
       ))}
     </select>
-    <ChevronDownIcon className="pointer-events-none absolute right-3 text-slate-500" />
+    <ChevronDownIcon className={selectChevronClass} />
   </label>
 );
 
