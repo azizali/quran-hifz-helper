@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon192_rounded.png', 'icon512_rounded.png', 'click-sound.mp3'],
+      includeAssets: ['favicon.svg', 'icon192_rounded.png', 'icon512_rounded.png', 'click-sound.mp3', 'fonts/*.woff2'],
       manifest: {
         name: 'Hifz Helper',
         short_name: 'Hifz Helper',
@@ -60,7 +60,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /\/quran-text\/\d+\.json$/,
+            urlPattern: /\/quran-text\/(?:[a-z]+\/)?\d+\.json$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'quran-text-cache',
