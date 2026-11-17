@@ -36,7 +36,7 @@ type AyahSelectProps = {
 /** Native select: one tap opens the system picker, which scrolls well even with 286 ayat. */
 const AyahSelect = ({ id, label, value, options, disabled, onChange }: AyahSelectProps) => (
   <label className="flex flex-col gap-1" htmlFor={id}>
-    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+    <span className="pl-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
     <span className="relative flex w-24 items-center">
       <select
         id={id}
