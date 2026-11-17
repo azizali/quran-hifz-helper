@@ -250,6 +250,7 @@ const QuranApp = () => {
         onCycleStatus={cycleStatus}
         pendingStart={pendingStart}
         onPickNumber={pickNumber}
+        onCancelPick={() => setPendingStart(null)}
         onPlayOutsideRange={setLeaveRangeFor}
       />
       {controlsHidden && (

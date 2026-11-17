@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useLocalStorage } from "usehooks-ts";
 import type { TrackObject, TrackUrl } from "../../_main/types";
 import { nextStatusLabel, statusLabel, type MemorizationStatus } from "../hooks/useMemorization";
 import { useSurahText } from "../hooks/useSurahText";
@@ -19,6 +20,7 @@ interface AyatListProps {
   onCycleStatus: (ayatNumber: number) => void;
   pendingStart: number | null;
   onPickNumber: (ayatNumber: number) => void;
+  onCancelPick: () => void;
   /** An ayah outside the range was tapped; the parent confirms before leaving the range. */
   onPlayOutsideRange: (ayatNumber: number) => void;
 }
@@ -30,9 +32,11 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 /**
- * Every ayah of the surah, with the selected range tinted. The number on each
- * row picks the range; a tap anywhere else on the row plays that ayah (outside
- * the range, after the parent confirms). Only this list scrolls.
+ * Every ayah of the surah, with the selected range marked. The number on each
+ * row starts a new range; a tap anywhere else on the row plays that ayah
+ * (outside the range, after the parent confirms). While a range is being
+ * picked, a bar at the top says so and a tap anywhere on a row ends the range.
+ * Only this list scrolls.
  */
 export const AyatList: React.FC<AyatListProps> = ({
   surahNumber,
@@ -48,12 +52,20 @@ export const AyatList: React.FC<AyatListProps> = ({
   onCycleStatus,
   pendingStart,
   onPickNumber,
+  onCancelPick,
   onPlayOutsideRange,
 }) => {
   const surahText = useSurahText(surahNumber);
   const listRef = useRef<HTMLOListElement | null>(null);
   const [start, end] = ayatRange;
   const memorizing = mode === "memorize";
+  const picking = pendingStart !== null;
+  // Shown until the user has picked a range from the list once, or dismisses it.
+  const [rangeTipSeen, setRangeTipSeen] = useLocalStorage<boolean>("rangeTipSeen", false);
+  const pick = (n: number) => {
+    setRangeTipSeen(true);
+    onPickNumber(n);
+  };
 
   // Bring the start of the range into view when it changes or the text arrives.
   useEffect(() => {
@@ -61,44 +73,82 @@ export const AyatList: React.FC<AyatListProps> = ({
     const row = list?.querySelector<HTMLElement>(`[data-ayat="${start}"]`);
     if (!list || !row) return;
     const offset = row.getBoundingClientRect().top - list.getBoundingClientRect().top;
-    list.scrollTop += offset - 8;
+    // Keep the row clear of the tip bar when it is pinned at the top.
+    const pinned = list.querySelector<HTMLElement>(":scope > li.sticky")?.offsetHeight ?? 0;
+    list.scrollTop += offset - 8 - pinned;
   }, [start, surahNumber, surahText]);
 
   return (
     <ol ref={listRef} data-ayat-list className="player-list min-h-0 flex-1 overflow-y-auto" aria-label="Ayat">
+      {picking ? (
+        <li className="sticky top-0 z-10 flex items-center gap-3 border-b border-indigo-200 bg-indigo-50 py-1.5 pl-4 pr-2 text-sm text-indigo-900" aria-live="polite">
+          <span className="min-w-0 flex-1">
+            New range from <b className="tabular-nums">{pendingStart}</b>. Now tap the ayah it should end on.
+          </span>
+          <button
+            type="button"
+            onClick={onCancelPick}
+            className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-primary hover:bg-indigo-100"
+          >
+            Cancel
+          </button>
+        </li>
+      ) : (
+        !rangeTipSeen && (
+          <li className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white py-1.5 pl-4 pr-2 text-sm text-slate-600">
+            <span className="min-w-0 flex-1">
+              Tap an ayah <b className="font-semibold text-slate-900">number</b> to start a new range.
+            </span>
+            <button
+              type="button"
+              onClick={() => setRangeTipSeen(true)}
+              className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-primary hover:bg-slate-50"
+            >
+              Got it
+            </button>
+          </li>
+        )
+      )}
       {Array.from({ length: numberOfAyats }, (_, index) => {
         const n = index + 1;
-        const inRange = n >= start && n <= end;
-        const track = inRange ? tracksToPlay[n - start] : undefined;
+        const selected = n >= start && n <= end;
+        const track = selected ? tracksToPlay[n - start] : undefined;
         const isActive = Boolean(track && track.trackUrl === activeTrackUrl);
-        const isEdge = inRange && start !== end && (n === start || n === end);
         const isPending = pendingStart === n;
+        // While picking, the old range steps aside and only the new start is marked.
+        const inRange = picking ? isPending : selected;
+        const isEdge = !picking && inRange && start !== end && (n === start || n === end);
         const hidden = memorizing && !revealed[n];
         const status = statuses[n] ?? "new";
         const arabic = surahText?.[index];
 
-        const isFrom = inRange && n === start;
-        const isTo = inRange && n === end;
-        const numberClass = isActive
+        const isFrom = picking ? isPending : inRange && n === start;
+        const isTo = !picking && inRange && n === end;
+        const numberClass = isPending
           ? "bg-primary text-white"
-          : isPending
-            ? "text-primary outline-dashed outline-[1.5px] outline-offset-1 outline-primary"
-            : isFrom || isTo
-              ? "text-primary"
-              : inRange
-                ? "text-slate-700 hover:bg-slate-100"
-                : "text-slate-400 hover:bg-slate-100";
+          : picking
+            ? // Every other number becomes a visible target for the end of the range.
+              "bg-white text-primary ring-1 ring-inset ring-indigo-300"
+            : isActive
+              ? "bg-primary text-white"
+              : isFrom || isTo
+                ? "text-primary group-hover/num:bg-indigo-50"
+                : inRange
+                  ? "text-slate-700 group-hover/num:bg-indigo-50 group-hover/num:text-primary"
+                  : "text-slate-400 group-hover/num:bg-indigo-50 group-hover/num:text-primary";
         // Alternate rows get a faint tint so the eye can tell one ayah from the next.
         const rowClass = isActive
           ? "bg-indigo-50"
           : index % 2 === 1
             ? "bg-slate-50 hover:bg-slate-100"
             : "bg-white hover:bg-slate-100/70";
-        const textClass = isActive ? "text-indigo-950" : inRange ? "text-slate-900" : "text-slate-500";
-        const play = () => (track ? handleAyatClick(track.trackUrl) : onPlayOutsideRange(n));
+        const textClass = isActive ? "text-indigo-950" : inRange || picking ? "text-slate-900" : "text-slate-500";
+        // While picking, a tap anywhere on a row ends the range instead of playing.
+        const play = () =>
+          picking ? pick(n) : track ? handleAyatClick(track.trackUrl) : onPlayOutsideRange(n);
 
         const text = hidden ? (
-          <div className={`ayat-hidden-line ${inRange ? "" : "opacity-50"}`} aria-label="Hidden ayah" />
+          <div className={`ayat-hidden-line ${inRange || picking ? "" : "opacity-50"}`} aria-label="Hidden ayah" />
         ) : arabic ? (
           <p className={`ayat-arabic ${textClass}`} lang="ar">
             {arabic}
@@ -126,9 +176,10 @@ export const AyatList: React.FC<AyatListProps> = ({
               {/* A 44px tap target around a small numeral; no circle. */}
               <button
                 type="button"
-                onClick={() => onPickNumber(n)}
-                aria-label={`Ayah ${n}. Tap to set the range ${pendingStart !== null ? "end" : "start"}.`}
-                className="grid h-11 min-w-11 place-items-start justify-center pt-1.5"
+                onClick={() => pick(n)}
+                aria-label={picking ? `End the range at ayah ${n}` : `Start a new range at ayah ${n}`}
+                title={picking ? `End the range at ${n}` : `Start a new range at ${n}`}
+                className="group/num grid h-11 min-w-11 place-items-start justify-center pt-1.5"
               >
                 <span
                   className={`block h-6 min-w-8 rounded-md px-1 text-[13px] font-semibold leading-6 tabular-nums ${numberClass}`}
@@ -136,7 +187,7 @@ export const AyatList: React.FC<AyatListProps> = ({
                   {n}
                 </span>
               </button>
-              {isEdge && (
+              {(isEdge || isPending) && (
                 <span className="-mt-3 text-[10px] font-semibold text-primary">{isFrom ? "From" : "To"}</span>
               )}
             </div>
@@ -151,7 +202,13 @@ export const AyatList: React.FC<AyatListProps> = ({
                     play();
                   }
                 }}
-                aria-label={track ? `Play ayah ${n}` : `Play from ayah ${n}, leaving the range`}
+                aria-label={
+                  picking
+                    ? `End the range at ayah ${n}`
+                    : track
+                      ? `Play ayah ${n}`
+                      : `Play from ayah ${n}, leaving the range`
+                }
                 aria-current={isActive ? "true" : undefined}
                 className="rounded"
               >
